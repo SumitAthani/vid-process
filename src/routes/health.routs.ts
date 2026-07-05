@@ -16,7 +16,7 @@ router.get("/health", async (req: Request, res: Response) => {
   };
 
   try {
-    // Run checks concurrently. 
+    // Run checks concurrently.
     // allSettled waits for all promises to finish regardless of success or failure.
     const [redisResult, minioResult] = await Promise.allSettled([
       connection.ping(),
@@ -27,14 +27,14 @@ router.get("/health", async (req: Request, res: Response) => {
     if (redisResult.status === "fulfilled" && redisResult.value === "PONG") {
       healthStatus.services.redis = "up";
     } else if (redisResult.status === "rejected") {
-      console.error("❌ Redis health check failed:", redisResult.reason);
+      req.log.warn({ err: redisResult.reason }, "Redis health check failed");
     }
 
     // 2. Evaluate MinIO
     if (minioResult.status === "fulfilled") {
       healthStatus.services.minio = "up";
     } else if (minioResult.status === "rejected") {
-      console.error("❌ MinIO health check failed:", minioResult.reason);
+      req.log.warn({ err: minioResult.reason }, "MinIO health check failed");
     }
 
     // Determine if everything is healthy
@@ -50,12 +50,11 @@ router.get("/health", async (req: Request, res: Response) => {
       // Return 503 Service Unavailable so load balancers know to route traffic elsewhere
       res.status(503).json(healthStatus);
     }
-    
   } catch (error) {
-    // This catch block will now only trigger for catastrophic, unexpected errors 
+    // This catch block will now only trigger for catastrophic, unexpected errors
     // (e.g., memory issues or synchronous code failures) rather than network rejections.
-    console.error("❌ Catastrophic health check failure:", error);
-    
+    req.log.error(error, "Catastrophic health check failure");
+
     res.status(503).json({
       status: "error",
       timestamp: new Date().toISOString(),
