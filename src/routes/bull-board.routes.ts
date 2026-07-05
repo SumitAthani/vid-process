@@ -1,0 +1,29 @@
+import { createBullBoard } from "@bull-board/api";
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
+import { ExpressAdapter } from "@bull-board/express";
+import { Router } from "express";
+
+import {
+  transcriptionQueue,
+  summaryQueue,
+  brollQueue,
+  renderQueue,
+} from "../queues/queues";
+
+const serverAdapter = new ExpressAdapter();
+serverAdapter.setBasePath("/bull/admin/queues");
+
+createBullBoard({
+  queues: [
+    new BullMQAdapter(transcriptionQueue),
+    new BullMQAdapter(summaryQueue),
+    new BullMQAdapter(brollQueue),
+    new BullMQAdapter(renderQueue),
+  ],
+  serverAdapter,
+});
+
+const router = Router();
+router.use("/admin/queues", serverAdapter.getRouter());
+
+export default router;
