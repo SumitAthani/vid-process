@@ -1,5 +1,6 @@
 import "../config/env";
 import { Client } from "minio";
+import { logger } from "../logger";
 
 export const minioClient = new Client({
   endPoint: process.env.MINIO_ENDPOINT!,
@@ -9,7 +10,7 @@ export const minioClient = new Client({
   secretKey: process.env.MINIO_SECRET_KEY!,
 });
 
-// Exporting these as constants makes it easy to import them 
+// Exporting these as constants makes it easy to import them
 // into other files without risking typos in the string names.
 export const BUCKETS = {
   RAW_VIDEOS: "raw-videos",
@@ -26,12 +27,13 @@ export async function createBucketsIfNotExist() {
 
       if (!exists) {
         await minioClient.makeBucket(bucket, "us-east-1");
-        console.log(`✅ Bucket created: ${bucket}`);
+        logger.info({ bucket }, "Bucket created");
       } else {
-        console.log(`👍 Bucket already exists: ${bucket}`);
+        logger.info({ bucket }, "Bucket already exists");
       }
     } catch (error) {
-      console.error(`❌ Failed to check or create bucket '${bucket}':`, error);
+      logger.error({ bucket, err: error }, "Failed to check or create bucket");
+      throw error;
     }
   }
 }

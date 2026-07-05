@@ -12,7 +12,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000), // Coerces the string to a number directly
 
   // Redis
-  REDIS_URL: z.url(),
+  REDIS_HOST: z.string().min(1),
+  REDIS_PORT: z.coerce.number().int().min(1).max(65535),
 
   // MinIO
   MINIO_ENDPOINT: z.string(),
@@ -32,8 +33,9 @@ const parsedEnv = envSchema.safeParse(process.env);
 if (!parsedEnv.success) {
   console.error(
     "❌ Invalid environment variables:\n",
+    parsedEnv
   );
-  z.treeifyError(parsedEnv.error);
+  
   process.exit(1);
 }
 
