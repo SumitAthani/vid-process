@@ -10,9 +10,10 @@ import { logger } from "./logger";
 import { createBucketsIfNotExist } from "./services/minio.service";
 import healthRoutes from "./routes/health.routs";
 import uploadRoutes from "./routes/upload.routes";
+import bullBoardRoutes from "./routes/bull-board.routes";
 
 const app = express();
-
+const apiRouter = express.Router();
 const PORT = process.env.PORT || 3000;
 
 process.on("uncaughtException", (err) => {
@@ -29,13 +30,23 @@ app.use(
   pinoHttp({
     logger,
     genReqId: () => crypto.randomUUID(),
+    autoLogging: {
+      ignore: (req) => req.url?.startsWith("/bull/admin/queues") ?? false,
+    },
+    customLogLevel: (_req, res, err) => {
+      if (err || res.statusCode >= 500) return "error";
+      if (res.statusCode >= 400) return "warn";
+      return "info";
+    },
   })
 );
 
 app.use(express.json());
-app.use("/api", healthRoutes);
-app.use("/api/upload", uploadRoutes);
-app.get("/", (req: Request, res: Response) => {
+app.use("/api", apiRouter);
+apiRouter.use(healthRoutes);
+app.use("/bull", bullBoardRoutes);
+apiRouter.use("/upload", uploadRoutes);
+apiRouter.get("/", (req: Request, res: Response) => {
   req.log.info("Root endpoint called");
   res.send("Hello World");
 });
