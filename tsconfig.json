@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+      /* Base Options */
+      "target": "ES2022",                  // Compiles to modern JS features supported by current Node versions
+      "module": "CommonJS",                // Standard module system for Node.js
+      "moduleResolution": "node",
+      
+      /* Directory Setup */
+      "rootDir": "./src",                  // Where your TS files live
+      "outDir": "./dist",                  // Where the compiled JS files will go
+      
+      /* Strict Type-Checking Options */
+      "strict": true,                      // Enables all strict type-checking options (highly recommended)
+      "noImplicitAny": true,               // Prevents you from using variables without declaring a type
+      "strictNullChecks": true,            // Forces you to handle 'null' and 'undefined'
+      
+      /* Interoperability & Optimization */
+      "esModuleInterop": true,             // Fixes weird import issues with older JS packages
+      "forceConsistentCasingInFileNames": true, // Case sensitivity (crucial for Linux/Ubuntu environments)
+      "skipLibCheck": true,                // Skips type checking of node_modules (speeds up compiling)
+      "resolveJsonModule": true            // Allows you to import .json files if needed
+    },
+    "include": ["src/**/*"],               // Only compile files inside the src folder
+    "exclude": ["node_modules", "**/*.test.ts"] // Ignore these files
+  }
