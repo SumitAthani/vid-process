@@ -1,23 +1,24 @@
 import { flowProducer } from "../queues/flow";
 
-export async function createVideoFlow(videoUrl: string) {
+export async function createVideoFlow(objectName: string, jobId: string) {
   return flowProducer.add({
     name: "render-job",
     queueName: "render",
-    data: {},
+    data: { jobId, objectName },
 
     children: [
       {
         name: "summary-job",
         queueName: "summary",
-        data: {},
+        data: { jobId, objectName },
 
         children: [
           {
             name: "transcription-job",
             queueName: "transcription",
             data: {
-              videoUrl,
+              jobId,
+              objectName,
             },
           },
         ],
@@ -26,14 +27,15 @@ export async function createVideoFlow(videoUrl: string) {
       {
         name: "broll-job",
         queueName: "broll",
-        data: {},
+        data: { jobId, objectName },
 
         children: [
           {
             name: "transcription-job",
             queueName: "transcription",
             data: {
-              videoUrl,
+              jobId,
+              objectName,
             },
           },
         ],

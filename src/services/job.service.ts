@@ -1,6 +1,6 @@
 import { prisma } from "../db/client";
+import { createVideoFlow } from "../flows/video.flow";
 import { JobStatus } from "../generated/prisma/enums";
-import { transcriptionQueue } from "../queues/queues";
 
 export class EnqueueError extends Error {
   constructor(
@@ -43,10 +43,7 @@ export async function createAndEnqueueJob(objectName: string) {
   const job = await createJob(objectName);
 
   try {
-    await transcriptionQueue.add("transcribe", {
-      jobId: job.id,
-      objectName: job.objectName,
-    });
+    await createVideoFlow(objectName, job.id);
     return job;
   } catch (err) {
     await updateJobStatus(job.id, "failed");

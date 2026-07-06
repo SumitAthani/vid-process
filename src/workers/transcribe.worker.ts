@@ -3,6 +3,9 @@ import { Worker } from "bullmq";
 import { connection } from "../queues/connection";
 import { updateJobStatus } from "../services/job.service";
 import { logger } from "../utils/logger";
+import { BUCKETS, minioClient } from "../services/minio.service";
+
+const BUCKET = BUCKETS.RAW_VIDEOS;
 
 const worker = new Worker(
   "transcription",
@@ -12,11 +15,14 @@ const worker = new Worker(
 
     try {
       await updateJobStatus(jobId, "processing");
+
+      // Verify object exists
+      await minioClient.statObject(BUCKET, objectName);
+
       jobLogger.info({ objectName }, "Transcribing");
 
       await new Promise((r) => setTimeout(r, 3000));
 
-      await updateJobStatus(jobId, "completed");
       return { transcript: "This is transcript text" };
     } catch (err) {
       await updateJobStatus(jobId, "failed");

@@ -8,11 +8,11 @@ import pinoHttp from "pino-http";
 import { errorHandler } from "./middleware/error.middleware";
 import { logger } from "./utils/logger";
 import { createBucketsIfNotExist } from "./services/minio.service";
-import healthRoutes from "./routes/health.routs";
+import healthRoutes from "./routes/health.routes";
 import uploadRoutes from "./routes/upload.routes";
 import bullBoardRoutes from "./routes/bull-board.routes";
 import jobRouters from "./routes/jobs.routes";
-
+import webhooksRoutes from "./routes/webhooks.routes";
 const app = express();
 const apiRouter = express.Router();
 const PORT = process.env.PORT || 3000;
@@ -51,7 +51,7 @@ apiRouter.use(healthRoutes);
 app.use("/bull", bullBoardRoutes);
 apiRouter.use("/upload", uploadRoutes);
 apiRouter.use("/jobs", jobRouters);
-
+apiRouter.use(webhooksRoutes);
 apiRouter.get("/", (req: Request, res: Response) => {
   req.log.info("Root endpoint called");
   res.send("Hello World");

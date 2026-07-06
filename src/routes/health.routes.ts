@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { connection } from "../queues/connection";
 import { minioClient } from "../services/minio.service";
+import { prisma } from "../db/client";
 
 const router = Router();
 
@@ -11,9 +12,17 @@ router.get("/health", async (req: Request, res: Response) => {
     services: {
       redis: "down",
       minio: "down",
+      postgres: "down",
     },
     message: "All systems operational",
   };
+
+  try {
+    await prisma.job.findFirst();
+    healthStatus.services.postgres = "up";
+  } catch (error) {
+    healthStatus.services.postgres = "down";
+  }
 
   try {
     // Run checks concurrently.
@@ -40,7 +49,8 @@ router.get("/health", async (req: Request, res: Response) => {
     // Determine if everything is healthy
     const isHealthy =
       healthStatus.services.redis === "up" &&
-      healthStatus.services.minio === "up";
+      healthStatus.services.minio === "up" &&
+      healthStatus.services.postgres === "up";
 
     if (isHealthy) {
       res.status(200).json(healthStatus);
@@ -59,7 +69,8 @@ router.get("/health", async (req: Request, res: Response) => {
       status: "error",
       timestamp: new Date().toISOString(),
       services: { redis: "unknown", minio: "unknown" },
-      message: error instanceof Error ? error.message : "Unknown error occurred",
+      message:
+        error instanceof Error ? error.message : "Unknown error occurred",
     });
   }
 });

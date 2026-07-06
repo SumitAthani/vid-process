@@ -32,7 +32,7 @@ router.post("/presigned-upload", async (req, res) => {
     return res.json({
       uploadUrl: presignedUrl,
       objectName,
-      publicUrl: `http://localhost:9000/${BUCKETS.INTERMEDIATE_ASSETS}/${objectName}`,
+      publicUrl: `http://localhost:9000/${BUCKETS.RAW_VIDEOS}/${objectName}`,
     });
   } catch (err) {
     req.log.error(err, "Failed to generate presigned URL");
