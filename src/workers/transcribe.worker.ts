@@ -1,28 +1,39 @@
+import "../config/env";
 import { Worker } from "bullmq";
 import { connection } from "../queues/connection";
-import { logger } from "../logger";
+import { updateJobStatus } from "../services/job.service";
+import { logger } from "../utils/logger";
 
 const worker = new Worker(
   "transcription",
   async (job) => {
-    const jobLogger = logger.child({ jobId: job.id });
+    const { jobId, objectName } = job.data;
+    const jobLogger = logger.child({ jobId, bullmqJobId: job.id });
 
-    jobLogger.info({ videoUrl: job.data.videoUrl }, "Transcribing");
+    try {
+      await updateJobStatus(jobId, "processing");
+      jobLogger.info({ objectName }, "Transcribing");
 
-    // fake processing
-    await new Promise((r) => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 3000));
 
-    return {
-      transcript: "This is transcript text",
-    };
+      await updateJobStatus(jobId, "completed");
+      return { transcript: "This is transcript text" };
+    } catch (err) {
+      await updateJobStatus(jobId, "failed");
+      throw err;
+    }
   },
-  { connection }
+  { connection },
 );
 
 worker.on("completed", (job) => {
-  logger.child({ jobId: job.id }).info("Job completed");
+  logger
+    .child({ jobId: job?.data.jobId, bullmqJobId: job?.id })
+    .info("Job completed");
 });
 
 worker.on("failed", (job, err) => {
-  logger.child({ jobId: job?.id }).error(err, "Job failed");
+  logger
+    .child({ jobId: job?.data.jobId, bullmqJobId: job?.id })
+    .error(err, "Job failed");
 });

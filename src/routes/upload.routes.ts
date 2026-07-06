@@ -22,7 +22,7 @@ router.post("/presigned-upload", async (req, res) => {
     const expiry = 60 * 10;
 
     const presignedUrl = await minioClient.presignedPutObject(
-      BUCKETS.INTERMEDIATE_ASSETS,
+      BUCKETS.RAW_VIDEOS,
       objectName,
       expiry
     );

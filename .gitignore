@@ -1,3 +1,4 @@
 node_modules
 .env
 ROADMAP.md
+/src/generated/prisma

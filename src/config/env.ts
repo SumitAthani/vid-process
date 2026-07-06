@@ -15,6 +15,9 @@ const envSchema = z.object({
   REDIS_HOST: z.string().min(1),
   REDIS_PORT: z.coerce.number().int().min(1).max(65535),
 
+  // Database
+  DATABASE_URL: z.url(),
+
   // MinIO
   MINIO_ENDPOINT: z.string(),
   MINIO_PORT: z.coerce.number(),

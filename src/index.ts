@@ -6,11 +6,12 @@ import type { Request, Response } from "express";
 import pinoHttp from "pino-http";
 
 import { errorHandler } from "./middleware/error.middleware";
-import { logger } from "./logger";
+import { logger } from "./utils/logger";
 import { createBucketsIfNotExist } from "./services/minio.service";
 import healthRoutes from "./routes/health.routs";
 import uploadRoutes from "./routes/upload.routes";
 import bullBoardRoutes from "./routes/bull-board.routes";
+import jobRouters from "./routes/jobs.routes";
 
 const app = express();
 const apiRouter = express.Router();
@@ -38,14 +39,19 @@ app.use(
       if (res.statusCode >= 400) return "warn";
       return "info";
     },
-  })
+  }),
 );
 
 app.use(express.json());
+
 app.use("/api", apiRouter);
+
 apiRouter.use(healthRoutes);
+
 app.use("/bull", bullBoardRoutes);
 apiRouter.use("/upload", uploadRoutes);
+apiRouter.use("/jobs", jobRouters);
+
 apiRouter.get("/", (req: Request, res: Response) => {
   req.log.info("Root endpoint called");
   res.send("Hello World");
