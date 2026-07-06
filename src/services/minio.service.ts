@@ -1,6 +1,6 @@
 import "../config/env";
 import { Client } from "minio";
-import { logger } from "../logger";
+import { logger } from "../utils/logger";
 
 export const minioClient = new Client({
   endPoint: process.env.MINIO_ENDPOINT!,
