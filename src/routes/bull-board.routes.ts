@@ -5,7 +5,7 @@ import { Router } from "express";
 
 import {
   transcriptionQueue,
-  summaryQueue,
+  cropQueue,
   brollQueue,
   renderQueue,
 } from "../queues/queues";
@@ -16,7 +16,7 @@ serverAdapter.setBasePath("/bull/admin/queues");
 createBullBoard({
   queues: [
     new BullMQAdapter(transcriptionQueue),
-    new BullMQAdapter(summaryQueue),
+    new BullMQAdapter(cropQueue),
     new BullMQAdapter(brollQueue),
     new BullMQAdapter(renderQueue),
   ],

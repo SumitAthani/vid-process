@@ -4,29 +4,56 @@ import { connection } from "../queues/connection";
 import { updateJobStatus } from "../services/job.service";
 import { logger } from "../utils/logger";
 import { BUCKETS, minioClient } from "../services/minio.service";
-
-const BUCKET = BUCKETS.RAW_VIDEOS;
+import {
+  cleanupWorkDir,
+  createJobWorkDir,
+  ingestMedia,
+} from "../services/media-ingestion.service";
+import {
+  saveTranscriptArtifacts,
+  transcribeAudioFile,
+} from "../services/transcription.service";
 
 const worker = new Worker(
   "transcription",
   async (job) => {
     const { jobId, objectName } = job.data;
     const jobLogger = logger.child({ jobId, bullmqJobId: job.id });
+    let workDir: string | null = null;
 
     try {
       await updateJobStatus(jobId, "processing");
 
-      // Verify object exists
-      await minioClient.statObject(BUCKET, objectName);
+      await minioClient.statObject(BUCKETS.RAW_VIDEOS, objectName);
+      jobLogger.info({ objectName }, "Starting media ingestion");
 
-      jobLogger.info({ objectName }, "Transcribing");
+      workDir = await createJobWorkDir(jobId);
 
-      await new Promise((r) => setTimeout(r, 3000));
+      const { audioObjectKey, metadataObjectKey, metadata, localAudioPath } =
+        await ingestMedia(jobId, objectName, workDir);
 
-      return { transcript: "This is transcript text" };
+      jobLogger.info({ audioObjectKey }, "Transcribing audio");
+      const transcript = await transcribeAudioFile(localAudioPath);
+
+      const { transcriptJsonKey, transcriptTextKey } =
+        await saveTranscriptArtifacts(jobId, workDir, transcript);
+
+      await updateJobStatus(jobId, "completed");
+
+      return {
+        audioObjectKey,
+        metadataObjectKey,
+        transcriptJsonKey,
+        transcriptTextKey,
+        durationSeconds: metadata.durationSeconds,
+        segmentCount: transcript.segments.length,
+        textPreview: transcript.text.slice(0, 200),
+      };
     } catch (err) {
       await updateJobStatus(jobId, "failed");
       throw err;
+    } finally {
+      if (workDir) await cleanupWorkDir(workDir);
     }
   },
   { connection },

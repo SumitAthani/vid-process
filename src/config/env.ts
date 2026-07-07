@@ -28,17 +28,16 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .transform((val) => val === "true")
     .default(false),
+
+  OPEN_AI_API_KEY: z.string(),
 });
 
 // 2. Parse and validate
 const parsedEnv = envSchema.safeParse(process.env);
 
 if (!parsedEnv.success) {
-  console.error(
-    "❌ Invalid environment variables:\n",
-    parsedEnv
-  );
-  
+  console.error("❌ Invalid environment variables:\n", parsedEnv);
+
   process.exit(1);
 }
 
