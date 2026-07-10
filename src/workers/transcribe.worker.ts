@@ -13,6 +13,10 @@ import {
   saveTranscriptArtifacts,
   transcribeAudioFile,
 } from "../services/transcription.service";
+import {
+  buildSubtitleCues,
+  saveSubtitleArtifacts,
+} from "../services/subtitle.service";
 
 const worker = new Worker(
   "transcription",
@@ -38,6 +42,13 @@ const worker = new Worker(
       const { transcriptJsonKey, transcriptTextKey } =
         await saveTranscriptArtifacts(jobId, workDir, transcript);
 
+      const subtitleCues = buildSubtitleCues(transcript.segments);
+      const { subtitlesSrtKey, subtitlesVttKey } = await saveSubtitleArtifacts(
+        jobId,
+        workDir,
+        subtitleCues,
+      );
+
       await updateJobStatus(jobId, "completed");
 
       return {
@@ -48,6 +59,8 @@ const worker = new Worker(
         durationSeconds: metadata.durationSeconds,
         segmentCount: transcript.segments.length,
         textPreview: transcript.text.slice(0, 200),
+        subtitlesSrtKey,
+        subtitlesVttKey,
       };
     } catch (err) {
       await updateJobStatus(jobId, "failed");

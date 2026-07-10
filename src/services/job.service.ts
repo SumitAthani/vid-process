@@ -28,18 +28,21 @@ export async function getJob(id: string) {
   });
 }
 
-export async function updateJobTranscriptionKeys(
-  id: string,
-  transcriptJsonKey: string,
-  transcriptTextKey: string,
-) {
+type UpdateJobData = Partial<{
+  status: JobStatus;
+  transcriptJsonKey: string;
+  transcriptTextKey: string;
+  subtitlesSrtKey: string;
+  subtitlesVttKey: string;
+}>;
+
+export async function updateJobKeys(id: string, data: UpdateJobData) {
   return await prisma.job.update({
     where: {
       id,
     },
     data: {
-      transcriptJsonKey,
-      transcriptTextKey,
+      ...data,
     },
   });
 }

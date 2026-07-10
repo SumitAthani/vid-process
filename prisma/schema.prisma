@@ -27,6 +27,8 @@ model Job {
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
   transcriptJsonKey String?   @map("transcript_json_key")
   transcriptTextKey String?   @map("transcript_text_key")
+  subtitlesSrtKey   String?   @map("subtitles_srt_key")
+  subtitlesVttKey   String?   @map("subtitles_vtt_key")
 
   @@map("jobs")
 }
