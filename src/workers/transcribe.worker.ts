@@ -1,7 +1,7 @@
 import "../config/env";
 import { Worker } from "bullmq";
 import { connection } from "../queues/connection";
-import { updateJobStatus } from "../services/job.service";
+import { updateJobStatus, updateJobStep } from "../services/job.service";
 import { logger } from "../utils/logger";
 import { BUCKETS, minioClient } from "../services/minio.service";
 import {
@@ -27,7 +27,7 @@ const worker = new Worker(
 
     try {
       await updateJobStatus(jobId, "processing");
-
+      await updateJobStep(jobId, "transcription", "processing");
       await minioClient.statObject(BUCKETS.RAW_VIDEOS, objectName);
       jobLogger.info({ objectName }, "Starting media ingestion");
 
@@ -49,7 +49,7 @@ const worker = new Worker(
         subtitleCues,
       );
 
-      await updateJobStatus(jobId, "completed");
+      await updateJobStep(jobId, "transcription", "completed");
 
       return {
         audioObjectKey,
@@ -64,6 +64,7 @@ const worker = new Worker(
       };
     } catch (err) {
       await updateJobStatus(jobId, "failed");
+      await updateJobStep(jobId, "transcription", "failed", err);
       throw err;
     } finally {
       if (workDir) await cleanupWorkDir(workDir);

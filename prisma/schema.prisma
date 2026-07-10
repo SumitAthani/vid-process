@@ -19,6 +19,14 @@ enum JobStatus {
   failed
 }
 
+enum StepStatus {
+  to_be_queued
+  queued
+  processing
+  completed
+  failed
+}
+
 model Job {
   id                String    @id @default(uuid()) @db.Uuid
   objectName        String    @map("object_name")
@@ -29,6 +37,12 @@ model Job {
   transcriptTextKey String?   @map("transcript_text_key")
   subtitlesSrtKey   String?   @map("subtitles_srt_key")
   subtitlesVttKey   String?   @map("subtitles_vtt_key")
+
+  // add any message to showcase whats happening / just tell the step name
+  currentStep String? @map("current_step")
+
+  transcriptionStatus StepStatus @default(to_be_queued) @map("transcription_status")
+  transcriptionError  String?    @map("transcription_error")
 
   @@map("jobs")
 }
