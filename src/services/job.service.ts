@@ -28,6 +28,22 @@ export async function getJob(id: string) {
   });
 }
 
+export async function updateJobTranscriptionKeys(
+  id: string,
+  transcriptJsonKey: string,
+  transcriptTextKey: string,
+) {
+  return await prisma.job.update({
+    where: {
+      id,
+    },
+    data: {
+      transcriptJsonKey,
+      transcriptTextKey,
+    },
+  });
+}
+
 export async function updateJobStatus(id: string, status: JobStatus) {
   return await prisma.job.update({
     where: {

@@ -4,6 +4,7 @@ import path from "path";
 import openaiClient from "../utils/openAiClient";
 import { toFile } from "openai";
 import { BUCKETS, uploadLocalFile } from "./minio.service";
+import { updateJobTranscriptionKeys } from "./job.service";
 
 export type TranscriptResult = {
   text: string;
@@ -62,6 +63,6 @@ export async function saveTranscriptArtifacts(
     txtPath,
     "text/plain",
   );
-
+  await updateJobTranscriptionKeys(jobId, transcriptJsonKey, transcriptTextKey);
   return { transcriptJsonKey, transcriptTextKey };
 }
