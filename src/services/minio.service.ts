@@ -1,7 +1,9 @@
 import "../config/env";
 import { Client } from "minio";
 import { logger } from "../utils/logger";
-
+import path from "path";
+import fs from "fs";
+import { pipeline } from "stream/promises";
 export const minioClient = new Client({
   endPoint: process.env.MINIO_ENDPOINT!,
   port: Number(process.env.MINIO_PORT),
@@ -36,4 +38,30 @@ export async function createBucketsIfNotExist() {
       throw error;
     }
   }
+}
+
+export async function getDataStream(bucketName: string, objectName: string) {
+  return await minioClient.getObject(bucketName, objectName);
+}
+
+export async function downloadVideo(
+  objectName: string,
+  workDir: string,
+): Promise<string> {
+  const ext = path.extname(objectName) || ".mp4";
+  const localPath = path.join(workDir, `input${ext}`);
+  const stream = await minioClient.getObject(BUCKETS.RAW_VIDEOS, objectName);
+  await pipeline(stream, fs.createWriteStream(localPath));
+  return localPath;
+}
+
+export async function uploadLocalFile(
+  bucket: string,
+  objectKey: string,
+  localPath: string,
+  contentType: string,
+): Promise<void> {
+  await minioClient.fPutObject(bucket, objectKey, localPath, {
+    "Content-Type": contentType,
+  });
 }

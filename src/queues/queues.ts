@@ -5,7 +5,7 @@ export const transcriptionQueue = new Queue("transcription", {
   connection,
 });
 
-export const summaryQueue = new Queue("summary", {
+export const cropQueue = new Queue("crop", {
   connection,
 });
 

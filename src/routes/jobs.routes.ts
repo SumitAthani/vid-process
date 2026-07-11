@@ -3,6 +3,7 @@ import {
   createAndEnqueueJob,
   EnqueueError,
   getJob,
+  getJobDetails,
 } from "../services/job.service";
 
 const router = Router();
@@ -44,7 +45,7 @@ router.post("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const jobId = req.params.id;
-    const jobData = await getJob(jobId);
+    const jobData = await getJobDetails(jobId);
     if (!jobData) {
       return res.status(404).json({
         message: `Job with id ${jobId} not found`,
