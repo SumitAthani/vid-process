@@ -5,32 +5,40 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // 1. Define the schema for your environment variables
-const envSchema = z.object({
-  NODE_ENV: z
-    .enum(["development", "production", "test"])
-    .default("development"),
-  PORT: z.coerce.number().default(3000), // Coerces the string to a number directly
+const envSchema = z
+  .object({
+    NODE_ENV: z
+      .enum(["development", "production", "test"])
+      .default("development"),
+    PORT: z.coerce.number().default(3000), // Coerces the string to a number directly
 
-  // Redis
-  REDIS_HOST: z.string().min(1),
-  REDIS_PORT: z.coerce.number().int().min(1).max(65535),
+    // Redis
+    REDIS_HOST: z.string().min(1),
+    REDIS_PORT: z.coerce.number().int().min(1).max(65535),
 
-  // Database
-  DATABASE_URL: z.url(),
+    // Database
+    DATABASE_URL: z.url(),
 
-  // MinIO
-  MINIO_ENDPOINT: z.string(),
-  MINIO_PORT: z.coerce.number(),
-  MINIO_ACCESS_KEY: z.string().min(1, "Access key is required"),
-  MINIO_SECRET_KEY: z.string().min(1, "Secret key is required"),
-  // Keep your custom transform here; z.coerce.boolean() is unsafe for "false"
-  MINIO_USE_SSL: z
-    .enum(["true", "false"])
-    .transform((val) => val === "true")
-    .default(false),
+    // MinIO
+    MINIO_ENDPOINT: z.string(),
+    MINIO_PORT: z.coerce.number(),
+    MINIO_ACCESS_KEY: z.string().min(1, "Access key is required"),
+    MINIO_SECRET_KEY: z.string().min(1, "Secret key is required"),
+    // Keep your custom transform here; z.coerce.boolean() is unsafe for "false"
+    MINIO_USE_SSL: z
+      .enum(["true", "false"])
+      .transform((val) => val === "true")
+      .default(false),
 
-  OPEN_AI_API_KEY: z.string(),
-});
+    OPEN_AI_API_KEY: z.string(),
+    MIN_REQUIRED_HOTKEYS: z.coerce.number(),
+    MAX_ALLOWED_HOTKEYS: z.coerce.number(),
+  })
+  .refine((data) => data.MIN_REQUIRED_HOTKEYS <= data.MAX_ALLOWED_HOTKEYS, {
+    message:
+      "MIN_REQUIRED_HOTKEYS must be less than or equal to MAX_ALLOWED_HOTKEYS",
+    path: ["MIN_REQUIRED_HOTKEYS"], // or ["MAX_ALLOWED_HOTKEYS"]
+  });
 
 // 2. Parse and validate
 const parsedEnv = envSchema.safeParse(process.env);
