@@ -82,6 +82,7 @@ type UpdateJobData = Partial<{
   transcriptTextKey: string;
   subtitlesSrtKey: string;
   subtitlesVttKey: string;
+  brollManifestKey: string;
 }>;
 
 export async function updateJobKeys(id: string, data: UpdateJobData) {
@@ -123,6 +124,10 @@ const JOB_STEP_CONFIG = {
     statusField: "transcriptionStatus",
     errorField: "transcriptionError",
   },
+  keywords: {
+    statusField: "keywordExtractionStatus",
+    errorField: "keywordExtractionError",
+  },
 } as const;
 
 export type JobStep = keyof typeof JOB_STEP_CONFIG;
@@ -144,6 +149,9 @@ export async function updateJobStep(
     currentStep?: string | null;
     transcriptionStatus?: StepStatus;
     transcriptionError?: string | null;
+
+    keywordExtractionStatus?: string | null;
+    keywordExtractionError?: string | null;
   } = {
     [statusField]: status,
   };

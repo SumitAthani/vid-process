@@ -1,23 +1,28 @@
 import "../config/env";
-import { Worker } from "bullmq";
+import { Job, Worker } from "bullmq";
 import { connection } from "../queues/connection";
-import { updateJobStatus } from "../services/job.service";
+import { updateJobStatus, updateJobStep } from "../services/job.service";
 import { logger } from "../utils/logger";
+import { generateManifestFromTranscript } from "../services/keyword.service";
 
 const worker = new Worker(
-  "summary",
+  "keyword-extraction",
   async (job) => {
     const { jobId, objectName } = job.data;
     const jobLogger = logger.child({ jobId, bullmqJobId: job.id });
 
     try {
-      jobLogger.info({ objectName }, "Summarizing");
+      await updateJobStep(jobId, "keywords", "processing");
 
-      await new Promise((r) => setTimeout(r, 3000));
+      jobLogger.info({ objectName }, "keyword extracting");
 
-      return { summary: "This is summary text" };
+      await generateManifestFromTranscript(jobId);
+
+      await updateJobStep(jobId, "keywords", "completed");
+      return { keywords: "These are the keywords extracted" };
     } catch (err) {
       await updateJobStatus(jobId, "failed");
+      await updateJobStep(jobId, "keywords", "failed", err);
       throw err;
     }
   },

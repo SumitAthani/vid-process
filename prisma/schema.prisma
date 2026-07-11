@@ -28,21 +28,28 @@ enum StepStatus {
 }
 
 model Job {
-  id                String    @id @default(uuid()) @db.Uuid
-  objectName        String    @map("object_name")
-  status            JobStatus @default(queued)
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
-  transcriptJsonKey String?   @map("transcript_json_key")
-  transcriptTextKey String?   @map("transcript_text_key")
-  subtitlesSrtKey   String?   @map("subtitles_srt_key")
-  subtitlesVttKey   String?   @map("subtitles_vtt_key")
+  id         String    @id @default(uuid()) @db.Uuid
+  objectName String    @map("object_name")
+  status     JobStatus @default(queued)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  // transription extraction keys
+  transcriptJsonKey String? @map("transcript_json_key")
+  transcriptTextKey String? @map("transcript_text_key")
+  subtitlesSrtKey   String? @map("subtitles_srt_key")
+  subtitlesVttKey   String? @map("subtitles_vtt_key")
 
   // add any message to showcase whats happening / just tell the step name
   currentStep String? @map("current_step")
 
   transcriptionStatus StepStatus @default(to_be_queued) @map("transcription_status")
   transcriptionError  String?    @map("transcription_error")
+
+  // keyword extraction keys
+  brollManifestKey        String?    @map("broll_manifest_key")
+  keywordExtractionStatus StepStatus @default(to_be_queued) @map("keyword_extraction_status")
+  keywordExtractionError  String?    @map("keyword_extraction_error")
 
   @@map("jobs")
 }
