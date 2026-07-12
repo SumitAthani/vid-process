@@ -40,8 +40,10 @@ Your objective is to return a strict JSON object with a "segments" array of B-ro
 - If the speaker stays on one theme for a long time, vary the imagery (related but different queries), or place only one strong clip for that topic.
 
 ### 6. LAYOUT
-- Always set layout to exactly: "top-half-overlay"
-- Do not use any other layout value.
+- Set layout to exactly one of: "top-half-overlay" | "half-and-half"
+- Prefer "half-and-half" when the speaker should stay clearly framed in the bottom half (clean 50/50 split).
+- Prefer "top-half-overlay" when B-roll should sit on the continuing full-frame primary (covers top half only).
+- Choose intentionally per segment — do not default everything to one value without reason.
 
 ### OUTPUT FORMAT
 Respond ONLY with valid JSON matching this schema (no markdown, no commentary):
@@ -53,6 +55,14 @@ Respond ONLY with valid JSON matching this schema (no markdown, no commentary):
       "searchQuery": "ocean surfing waves sunset",
       "startTime": 12.4,
       "endTime": 16.0,
+      "minDuration": 3.0,
+      "layout": "half-and-half"
+    },
+    {
+      "hotKey": "coffee",
+      "searchQuery": "morning coffee pouring",
+      "startTime": 22.0,
+      "endTime": 25.5,
       "minDuration": 3.0,
       "layout": "top-half-overlay"
     }

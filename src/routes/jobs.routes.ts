@@ -1,25 +1,45 @@
 import { Router } from "express";
+import { z } from "zod";
 import {
   createAndEnqueueJob,
   EnqueueError,
-  getJob,
   getJobDetails,
 } from "../services/job.service";
+import { CROP_STRATEGIES, PAD_BACKGROUNDS } from "../types/crop";
+
+const createJobBodySchema = z.object({
+  objectName: z.string().min(1),
+  cropStrategy: z.enum(CROP_STRATEGIES).optional(),
+  padBackground: z.enum(PAD_BACKGROUNDS).optional(),
+});
 
 const router = Router();
 
 router.post("/", async (req, res) => {
   try {
-    const { objectName } = req.body;
-    if (!objectName) {
+    const parsed = createJobBodySchema.safeParse(req.body);
+    if (!parsed.success) {
       return res.status(400).json({
-        message: "Object name is required",
+        message: "Invalid request body",
+        errors: parsed.error.flatten(),
       });
     }
 
-    const job = await createAndEnqueueJob(objectName);
+    const { objectName, cropStrategy, padBackground } = parsed.data;
+    const job = await createAndEnqueueJob(objectName, {
+      cropStrategy,
+      padBackground,
+    });
 
-    req.log.info({ jobId: job.id, objectName }, "Job created and enqueued");
+    req.log.info(
+      {
+        jobId: job.id,
+        objectName,
+        cropStrategy: job.cropStrategy,
+        padBackground: job.padBackground,
+      },
+      "Job created and enqueued",
+    );
 
     return res.status(201).json({
       jobData: job,

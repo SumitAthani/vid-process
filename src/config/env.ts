@@ -37,6 +37,15 @@ const envSchema = z
     PEXELS_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
     BROLL_MIN_ON_SCREEN_SEC: z.coerce.number().default(2.5),
     BROLL_MAX_ON_SCREEN_SEC: z.coerce.number().default(4),
+
+    // Primary video crop (9:16)
+    CROP_WIDTH: z.coerce.number().int().positive().default(1080),
+    CROP_HEIGHT: z.coerce.number().int().positive().default(1920),
+    CROP_STRATEGY: z.enum(["center", "pad"]).default("center"),
+    CROP_PAD_BACKGROUND: z.enum(["black", "white", "blur"]).default("blur"),
+
+    // Layout engine: fade duration when entering/leaving B-roll layouts
+    LAYOUT_TRANSITION_MS: z.coerce.number().int().nonnegative().default(250),
   })
   .refine((data) => data.MIN_REQUIRED_HOTKEYS <= data.MAX_ALLOWED_HOTKEYS, {
     message:

@@ -1,6 +1,12 @@
 import { prisma } from "../db/client";
 import { createVideoFlow } from "../flows/video.flow";
 import { JobStatus, StepStatus } from "../generated/prisma/enums";
+import { env } from "../config/env";
+import {
+  CropJobOptions,
+  CropStrategy,
+  PadBackground,
+} from "../types/crop";
 import { BUCKETS, minioClient } from "./minio.service";
 
 export class EnqueueError extends Error {
@@ -13,10 +19,28 @@ export class EnqueueError extends Error {
   }
 }
 
-export async function createJob(objectName: string) {
+export function resolveCropOptions(input: {
+  cropStrategy?: CropStrategy;
+  padBackground?: PadBackground;
+}): CropJobOptions {
+  const cropStrategy = input.cropStrategy ?? env.CROP_STRATEGY;
+  const padBackground =
+    cropStrategy === "pad"
+      ? (input.padBackground ?? env.CROP_PAD_BACKGROUND)
+      : null;
+
+  return { cropStrategy, padBackground };
+}
+
+export async function createJob(
+  objectName: string,
+  cropOptions: CropJobOptions,
+) {
   const job = await prisma.job.create({
     data: {
       objectName,
+      cropStrategy: cropOptions.cropStrategy,
+      padBackground: cropOptions.padBackground,
     },
   });
 
@@ -54,6 +78,8 @@ export async function getJobDetails(jobId: string) {
     subtitlesVttUrl,
     audioUrl,
     metadataUrl,
+    croppedUrl,
+    layoutUrl,
   ] = await Promise.all([
     presignIntermediateAsset(job.transcriptJsonKey),
     presignIntermediateAsset(job.transcriptTextKey),
@@ -61,6 +87,8 @@ export async function getJobDetails(jobId: string) {
     presignIntermediateAsset(job.subtitlesVttKey),
     presignIntermediateAsset(`${jobId}/audio.wav`),
     presignIntermediateAsset(`${jobId}/metadata.json`),
+    presignIntermediateAsset(job.croppedVideoKey),
+    presignIntermediateAsset(job.layoutVideoKey),
   ]);
 
   return {
@@ -72,6 +100,8 @@ export async function getJobDetails(jobId: string) {
       subtitlesVtt: subtitlesVttUrl,
       audio: audioUrl,
       metadata: metadataUrl,
+      cropped: croppedUrl,
+      layout: layoutUrl,
     },
   };
 }
@@ -84,6 +114,8 @@ type UpdateJobData = Partial<{
   subtitlesVttKey: string;
   brollManifestKey: string;
   brollResolvedKey: string;
+  croppedVideoKey: string;
+  layoutVideoKey: string;
 }>;
 
 export async function updateJobKeys(id: string, data: UpdateJobData) {
@@ -108,11 +140,18 @@ export async function updateJobStatus(id: string, status: JobStatus) {
   });
 }
 
-export async function createAndEnqueueJob(objectName: string) {
-  const job = await createJob(objectName);
+export async function createAndEnqueueJob(
+  objectName: string,
+  cropInput: {
+    cropStrategy?: CropStrategy;
+    padBackground?: PadBackground;
+  } = {},
+) {
+  const cropOptions = resolveCropOptions(cropInput);
+  const job = await createJob(objectName, cropOptions);
 
   try {
-    await createVideoFlow(objectName, job.id);
+    await createVideoFlow(objectName, job.id, cropOptions);
     return job;
   } catch (err) {
     await updateJobStatus(job.id, "failed");
@@ -132,6 +171,10 @@ const JOB_STEP_CONFIG = {
   broll: {
     statusField: "brollStatus",
     errorField: "brollError",
+  },
+  crop: {
+    statusField: "cropStatus",
+    errorField: "cropError",
   },
 } as const;
 
@@ -160,6 +203,9 @@ export async function updateJobStep(
 
     brollStatus?: StepStatus;
     brollError?: string | null;
+
+    cropStatus?: StepStatus;
+    cropError?: string | null;
   } = {
     [statusField]: status,
   };

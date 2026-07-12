@@ -13,8 +13,9 @@
     "worker:render": "tsx src/workers/render.worker.ts",
     "worker:keyword": "tsx src/workers/keyword-extraction.worker.ts",
     "worker:broll": "tsx src/workers/broll.worker.ts",
-    "worker:all": "concurrently \"tsx src/workers/transcribe.worker.ts\" \"tsx src/workers/render.worker.ts\" \"tsx src/workers/keyword-extraction.worker.ts\" \"tsx src/workers/broll.worker.ts\"",
-    "dev:all": "concurrently \"tsx watch src/index.ts\" \"tsx watch src/workers/transcribe.worker.ts\" \"tsx watch src/workers/render.worker.ts\" \"tsx watch src/workers/keyword-extraction.worker.ts\" \"tsx watch src/workers/broll.worker.ts\""
+    "worker:crop": "tsx src/workers/crop.worker.ts",
+    "worker:all": "concurrently \"tsx src/workers/transcribe.worker.ts\" \"tsx src/workers/render.worker.ts\" \"tsx src/workers/keyword-extraction.worker.ts\" \"tsx src/workers/broll.worker.ts\" \"tsx src/workers/crop.worker.ts\"",
+    "dev:all": "concurrently \"tsx watch src/index.ts\" \"tsx watch src/workers/transcribe.worker.ts\" \"tsx watch src/workers/render.worker.ts\" \"tsx watch src/workers/keyword-extraction.worker.ts\" \"tsx watch src/workers/broll.worker.ts\" \"tsx watch src/workers/crop.worker.ts\""
   },
   "dependencies": {
     "@bull-board/api": "^7.2.1",

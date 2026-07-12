@@ -1,6 +1,18 @@
 import { flowProducer } from "../queues/flow";
+import { CropJobOptions } from "../types/crop";
 
-export async function createVideoFlow(objectName: string, jobId: string) {
+export async function createVideoFlow(
+  objectName: string,
+  jobId: string,
+  cropOptions: CropJobOptions,
+) {
+  const cropJobData = {
+    jobId,
+    objectName,
+    cropStrategy: cropOptions.cropStrategy,
+    padBackground: cropOptions.padBackground,
+  };
+
   return flowProducer.add({
     name: "render-job",
     queueName: "render",
@@ -12,7 +24,7 @@ export async function createVideoFlow(objectName: string, jobId: string) {
       {
         name: "crop-job",
         queueName: "crop",
-        data: { jobId, objectName },
+        data: cropJobData,
       },
 
       // ---------------------------------------------------

@@ -215,7 +215,7 @@ export async function getClipsFromSegmentsAndSaveToMinio(
     startTime: number;
     endTime: number;
     minDuration: number;
-    layout: "top-half-overlay";
+    layout: "top-half-overlay" | "half-and-half";
   }>,
 ) {
   return mapWithConcurrency(

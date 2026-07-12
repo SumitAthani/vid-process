@@ -27,6 +27,17 @@ enum StepStatus {
   failed
 }
 
+enum CropStrategy {
+  center
+  pad
+}
+
+enum PadBackground {
+  black
+  white
+  blur
+}
+
 model Job {
   id         String    @id @default(uuid()) @db.Uuid
   objectName String    @map("object_name")
@@ -55,6 +66,16 @@ model Job {
   brollStatus      StepStatus? @default(to_be_queued) @map("broll_status")
   brollError       String?     @map("broll_error")
   brollResolvedKey String?     @map("broll_resolved_key")
+
+  // primary video crop (9:16)
+  cropStatus       StepStatus    @default(to_be_queued) @map("crop_status")
+  cropError        String?       @map("crop_error")
+  croppedVideoKey  String?       @map("cropped_video_key")
+  cropStrategy     CropStrategy  @default(center) @map("crop_strategy")
+  padBackground    PadBackground? @map("pad_background")
+
+  // layout composition (B-roll overlays; subtitles deferred to final stitch)
+  layoutVideoKey String? @map("layout_video_key")
 
   @@map("jobs")
 }

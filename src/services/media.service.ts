@@ -2,6 +2,9 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { VideoMetadata } from "../types/media";
 import { ClipFitPlan } from "../utils/broll-fit";
+import { CropStrategy, PadBackground } from "../types/crop";
+import { ComposeWithLayoutsOpts } from "../types/layout";
+import { buildLayoutFilterGraph } from "../utils/layout-graph";
 import path from "path";
 
 const execFileAsync = promisify(execFile);
@@ -119,5 +122,151 @@ export async function fitClipToDuration(
     String(plan.targetDuration),
     ...commonOut,
   ]);
+  return outputPath;
+}
+
+const ENCODE_ARGS = [
+  "-c:v",
+  "libx264",
+  "-pix_fmt",
+  "yuv420p",
+  "-movflags",
+  "+faststart",
+  "-c:a",
+  "aac",
+  "-b:a",
+  "192k",
+] as const;
+
+export type FitPrimaryToVerticalOpts = {
+  width: number;
+  height: number;
+  strategy: CropStrategy;
+  padBackground?: PadBackground | null;
+};
+
+/**
+ * Fit primary video into a vertical frame (e.g. 1080×1920) using center crop or pad.
+ * Re-encodes video (H.264) and audio (AAC) so the output is mux-ready.
+ */
+export async function fitPrimaryToVertical(
+  inputPath: string,
+  outputPath: string,
+  opts: FitPrimaryToVerticalOpts,
+): Promise<string> {
+  const { width, height, strategy, padBackground } = opts;
+
+  if (strategy === "pad") {
+    const bg = padBackground ?? "blur";
+    if (bg === "blur") {
+      await execFileAsync("ffmpeg", [
+        "-y",
+        "-i",
+        inputPath,
+        "-filter_complex",
+        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},gblur=sigma=20[bg];` +
+          `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease[fg];` +
+          `[bg][fg]overlay=(W-w)/2:(H-h)/2`,
+        ...ENCODE_ARGS,
+        outputPath,
+      ]);
+      return outputPath;
+    }
+
+    const color = bg === "white" ? "white" : "black";
+    const vf = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:${color}`;
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-i",
+      inputPath,
+      "-vf",
+      vf,
+      ...ENCODE_ARGS,
+      outputPath,
+    ]);
+    return outputPath;
+  }
+
+  // center crop
+  const vf = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
+  await execFileAsync("ffmpeg", [
+    "-y",
+    "-i",
+    inputPath,
+    "-vf",
+    vf,
+    ...ENCODE_ARGS,
+    outputPath,
+  ]);
+
+  return outputPath;
+}
+
+/** Prefer fitPrimaryToVertical with strategy "center". */
+export async function cropToVertical(
+  inputPath: string,
+  outputPath: string,
+  opts: { width: number; height: number },
+): Promise<string> {
+  return fitPrimaryToVertical(inputPath, outputPath, {
+    ...opts,
+    strategy: "center",
+  });
+}
+
+/**
+ * Composite timed B-roll layouts onto a full-timeline primary (9:16).
+ * Keeps primary audio when present; B-roll audio is ignored.
+ */
+export async function composeWithLayouts(
+  opts: ComposeWithLayoutsOpts,
+): Promise<string> {
+  const { primaryPath, outputPath, width, height, segments, transitionMs } =
+    opts;
+
+  const transitionSec = transitionMs / 1000;
+
+  if (segments.length === 0) {
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-i",
+      primaryPath,
+      ...ENCODE_ARGS,
+      outputPath,
+    ]);
+    return outputPath;
+  }
+
+  const graphSegments = segments.map((seg, i) => ({
+    inputIndex: i + 1,
+    startTime: seg.startTime,
+    endTime: seg.endTime,
+    layout: seg.layout,
+  }));
+
+  const { filterComplex, outputLabel } = buildLayoutFilterGraph({
+    width,
+    height,
+    segments: graphSegments,
+    transitionSec,
+  });
+
+  const args: string[] = ["-y", "-i", primaryPath];
+  for (const seg of segments) {
+    args.push("-i", seg.clipPath);
+  }
+
+  args.push(
+    "-filter_complex",
+    filterComplex,
+    "-map",
+    outputLabel,
+    "-map",
+    "0:a?",
+    ...ENCODE_ARGS,
+    outputPath,
+  );
+
+  await execFileAsync("ffmpeg", args);
   return outputPath;
 }
