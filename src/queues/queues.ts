@@ -5,6 +5,10 @@ export const transcriptionQueue = new Queue("transcription", {
   connection,
 });
 
+export const keywordExtractionQueue = new Queue("keyword-extraction", {
+  connection,
+});
+
 export const cropQueue = new Queue("crop", {
   connection,
 });

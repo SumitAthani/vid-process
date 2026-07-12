@@ -8,6 +8,7 @@ import {
   cropQueue,
   brollQueue,
   renderQueue,
+  keywordExtractionQueue,
 } from "../queues/queues";
 
 const serverAdapter = new ExpressAdapter();
@@ -19,6 +20,7 @@ createBullBoard({
     new BullMQAdapter(cropQueue),
     new BullMQAdapter(brollQueue),
     new BullMQAdapter(renderQueue),
+    new BullMQAdapter(keywordExtractionQueue),
   ],
   serverAdapter,
 });
