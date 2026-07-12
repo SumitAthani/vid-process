@@ -34,6 +34,9 @@ const envSchema = z
     MIN_REQUIRED_HOTKEYS: z.coerce.number(),
     MAX_ALLOWED_HOTKEYS: z.coerce.number(),
     PEXELS_API_KEY: z.string().min(1),
+    PEXELS_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
+    BROLL_MIN_ON_SCREEN_SEC: z.coerce.number().default(2.5),
+    BROLL_MAX_ON_SCREEN_SEC: z.coerce.number().default(4),
   })
   .refine((data) => data.MIN_REQUIRED_HOTKEYS <= data.MAX_ALLOWED_HOTKEYS, {
     message:

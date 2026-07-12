@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { VideoMetadata } from "../types/media";
+import { ClipFitPlan } from "../utils/broll-fit";
 import path from "path";
 
 const execFileAsync = promisify(execFile);
@@ -60,4 +61,63 @@ export async function extractAudio(
   ]);
 
   return localAudioPath;
+}
+
+/**
+ * Fit a local clip to exactly plan.targetDuration seconds.
+ * Strips audio (B-roll under talking head shouldn't keep stock audio).
+ */
+export async function fitClipToDuration(
+  inputPath: string,
+  outputPath: string,
+  plan: ClipFitPlan,
+): Promise<string> {
+  const commonOut = [
+    "-an",
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-movflags",
+    "+faststart",
+    outputPath,
+  ];
+
+  if (plan.strategy === "none") {
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-i",
+      inputPath,
+      "-t",
+      String(plan.targetDuration),
+      ...commonOut,
+    ]);
+    return outputPath;
+  }
+
+  if (plan.strategy === "trim") {
+    await execFileAsync("ffmpeg", [
+      "-y",
+      "-ss",
+      String(plan.trimStart),
+      "-i",
+      inputPath,
+      "-t",
+      String(plan.targetDuration),
+      ...commonOut,
+    ]);
+    return outputPath;
+  }
+
+  await execFileAsync("ffmpeg", [
+    "-y",
+    "-stream_loop",
+    String(plan.loopCount),
+    "-i",
+    inputPath,
+    "-t",
+    String(plan.targetDuration),
+    ...commonOut,
+  ]);
+  return outputPath;
 }

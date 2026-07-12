@@ -2,15 +2,12 @@ import { streamToString } from "../utils/files";
 import { BrollManifestSchema } from "../types/broll-manifest";
 import { BUCKETS, minioClient } from "./minio.service";
 import { updateJobKeys } from "./job.service";
-import {
-  downloadClipToMinio,
-  findPexelsClip,
-  getClipsFromSegmentsAndSaveToMinio,
-} from "./pexels.service";
+import { getClipsFromSegmentsAndSaveToMinio } from "./pexels.service";
 
-export async function getAndSaveBrollVideos(jobId: string) {
-  const brollManifestKey = `${jobId}/broll-manifest.json`;
-
+export async function getAndSaveBrollVideos(
+  jobId: string,
+  brollManifestKey = `${jobId}/broll-manifest.json`,
+) {
   const raw = JSON.parse(
     await streamToString(
       await minioClient.getObject(
@@ -46,5 +43,8 @@ export async function getAndSaveBrollVideos(jobId: string) {
 
   await updateJobKeys(jobId, { brollResolvedKey });
 
-  return { brollResolvedKey, clipCount: resolved.clips.length };
+  const resolvedCount = clips.filter((c) => c.status === "resolved").length;
+  const skippedCount = clips.length - resolvedCount;
+
+  return { brollResolvedKey, resolvedCount, skippedCount };
 }
