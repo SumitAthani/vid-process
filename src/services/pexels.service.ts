@@ -1,4 +1,5 @@
 import { env } from "../config/env";
+import { mapWithConcurrency } from "../utils/concurrency";
 import { logger } from "../utils/logger";
 import {
   brollCacheObjectKey,
@@ -7,6 +8,7 @@ import {
   setCachedClipObjectKey,
   setCachedSearch,
 } from "../utils/pexelsCache";
+import { fitDownloadedClipToWindow } from "./broll-fit.service";
 import { BUCKETS, minioClient } from "./minio.service";
 
 const PEXELS_SEARCH_URL = "https://api.pexels.com/v1/videos/search";
@@ -216,55 +218,67 @@ export async function getClipsFromSegmentsAndSaveToMinio(
     layout: "top-half-overlay";
   }>,
 ) {
-  const clips = [];
+  return mapWithConcurrency(
+    segments,
+    env.PEXELS_CONCURRENCY,
+    async (segment, i) => {
+      const windowDuration = segment.endTime - segment.startTime;
 
-  for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i];
+      let clip = await findPexelsClip(segment.searchQuery, windowDuration);
+      let searchQueryUsed = segment.searchQuery;
 
-    let clip = await findPexelsClip(segment.searchQuery, segment.minDuration);
-    let searchQueryUsed = segment.searchQuery;
-
-    if (!clip) {
-      const fallbackQuery = rewriteSearchQuery(segment.searchQuery);
-      if (fallbackQuery) {
-        clip = await findPexelsClip(fallbackQuery, segment.minDuration);
-        searchQueryUsed = fallbackQuery;
+      if (!clip) {
+        const fallbackQuery = rewriteSearchQuery(segment.searchQuery);
+        if (fallbackQuery) {
+          clip = await findPexelsClip(fallbackQuery, windowDuration);
+          searchQueryUsed = fallbackQuery;
+        }
       }
-    }
 
-    if (!clip) {
-      clips.push({
-        ...segment,
-        status: "skipped" as const,
-        skipReason: "no_match_after_rewrite",
-        searchQueryUsed,
-      });
-      continue;
-    }
+      if (!clip) {
+        return {
+          ...segment,
+          status: "skipped" as const,
+          skipReason: "no_match_after_rewrite",
+          searchQueryUsed,
+        };
+      }
 
-    try {
-      const objectKey = await downloadClipToMinio(jobId, i, clip);
-      clips.push({
-        ...segment,
-        status: "resolved" as const,
-        objectKey,
-        searchQueryUsed,
-        pexelsVideoId: clip.videoId,
-        pexelsUrl: clip.pageUrl,
-        photographer: clip.photographer,
-        width: clip.width,
-        height: clip.height,
-        duration: clip.duration,
-      });
-    } catch (err) {
-      clips.push({
-        ...segment,
-        status: "skipped" as const,
-        skipReason: err instanceof Error ? err.message : "download_failed",
-        searchQueryUsed,
-      });
-    }
-  }
+      try {
+        const rawObjectKey = await downloadClipToMinio(jobId, i, clip);
 
-  return clips;
+        const fitted = await fitDownloadedClipToWindow({
+          jobId,
+          index: i,
+          rawObjectKey,
+          videoId: clip.videoId,
+          windowStart: segment.startTime,
+          windowEnd: segment.endTime,
+        });
+
+        return {
+          ...segment,
+          status: "resolved" as const,
+          objectKey: fitted.objectKey,
+          rawObjectKey,
+          searchQueryUsed,
+          pexelsVideoId: clip.videoId,
+          pexelsUrl: clip.pageUrl,
+          photographer: clip.photographer,
+          width: clip.width,
+          height: clip.height,
+          duration: fitted.fittedDuration,
+          sourceDuration: fitted.sourceDuration,
+          fitStrategy: fitted.fitStrategy,
+        };
+      } catch (err) {
+        return {
+          ...segment,
+          status: "skipped" as const,
+          skipReason: err instanceof Error ? err.message : "fit_failed",
+          searchQueryUsed,
+        };
+      }
+    },
+  );
 }

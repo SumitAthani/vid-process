@@ -9,6 +9,7 @@ import {
 import { streamToString } from "../utils/files";
 import openaiClient from "../utils/openAiClient";
 import { KEYWORD_SYSTEM_PROMPT } from "../utils/keywords-generation.instructions";
+import { enforceMinOnScreenDuration } from "../utils/broll-timing";
 
 export async function generateManifestFromTranscript(
   jobId: string,
@@ -49,10 +50,16 @@ export async function generateManifestFromTranscript(
   if (!Array.isArray(llmJson?.segments)) {
     throw new Error("LLM response missing s`egments array");
   }
+
+  const normalizedSegments = enforceMinOnScreenDuration(
+    llmJson.segments,
+    durationSeconds,
+  );
+
   const manifestData = {
     version: 1 as const,
     jobId,
-    segments: llmJson.segments,
+    segments: normalizedSegments,
   };
 
   const parsedManifest = BrollManifestSchema.safeParse(manifestData);
@@ -86,4 +93,6 @@ export async function generateManifestFromTranscript(
   await updateJobKeys(jobId, {
     brollManifestKey,
   });
+
+  return { brollManifestKey };
 }

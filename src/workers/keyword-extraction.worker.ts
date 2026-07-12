@@ -25,13 +25,13 @@ const worker = new Worker(
 
       jobLogger.info({ objectName }, "keyword extracting");
 
-      await generateManifestFromTranscript(
+      const result = await generateManifestFromTranscript(
         jobId,
         transcriptionResult.durationSeconds,
       );
 
       await updateJobStep(jobId, "keywords", "completed");
-      return { keywords: "These are the keywords extracted" };
+      return result;
     } catch (err) {
       await updateJobStatus(jobId, "failed");
       await updateJobStep(jobId, "keywords", "failed", err);
