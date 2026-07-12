@@ -33,6 +33,7 @@ const envSchema = z
     OPEN_AI_API_KEY: z.string(),
     MIN_REQUIRED_HOTKEYS: z.coerce.number(),
     MAX_ALLOWED_HOTKEYS: z.coerce.number(),
+    PEXELS_API_KEY: z.string().min(1),
   })
   .refine((data) => data.MIN_REQUIRED_HOTKEYS <= data.MAX_ALLOWED_HOTKEYS, {
     message:

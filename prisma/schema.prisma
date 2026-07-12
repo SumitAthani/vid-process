@@ -51,5 +51,10 @@ model Job {
   keywordExtractionStatus StepStatus @default(to_be_queued) @map("keyword_extraction_status")
   keywordExtractionError  String?    @map("keyword_extraction_error")
 
+  // broll
+  brollStatus      StepStatus? @default(to_be_queued) @map("broll_status")
+  brollError       String?     @map("broll_error")
+  brollResolvedKey String?     @map("broll_resolved_key")
+
   @@map("jobs")
 }

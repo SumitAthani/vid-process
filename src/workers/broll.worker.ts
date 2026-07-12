@@ -1,8 +1,9 @@
 import "../config/env";
 import { Worker } from "bullmq";
 import { connection } from "../queues/connection";
-import { updateJobStatus } from "../services/job.service";
+import { updateJobStatus, updateJobStep } from "../services/job.service";
 import { logger } from "../utils/logger";
+import { getAndSaveBrollVideos } from "../services/broll.service";
 
 const worker = new Worker(
   "broll",
@@ -12,12 +13,15 @@ const worker = new Worker(
 
     try {
       jobLogger.info({ objectName }, "Generating Broll");
+      await updateJobStep(jobId, "broll", "processing");
 
-      await new Promise((r) => setTimeout(r, 3000));
+      await getAndSaveBrollVideos(jobId)
 
+      await updateJobStep(jobId, "broll", "completed");
       return { broll: "This is broll text" };
     } catch (err) {
       await updateJobStatus(jobId, "failed");
+      await updateJobStep(jobId, "broll", "failed", err);
       throw err;
     }
   },
