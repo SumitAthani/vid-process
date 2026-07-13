@@ -13,8 +13,9 @@
     "worker:render": "tsx src/workers/render.worker.ts",
     "worker:keyword": "tsx src/workers/keyword-extraction.worker.ts",
     "worker:broll": "tsx src/workers/broll.worker.ts",
-    "worker:all": "concurrently \"tsx src/workers/transcribe.worker.ts\" \"tsx src/workers/render.worker.ts\" \"tsx src/workers/keyword-extraction.worker.ts\" \"tsx src/workers/broll.worker.ts\"",
-    "dev:all": "concurrently \"tsx watch src/index.ts\" \"tsx watch src/workers/transcribe.worker.ts\" \"tsx watch src/workers/render.worker.ts\" \"tsx watch src/workers/keyword-extraction.worker.ts\" \"tsx watch src/workers/broll.worker.ts\""
+    "worker:crop": "tsx src/workers/crop.worker.ts",
+    "worker:all": "concurrently \"tsx src/workers/transcribe.worker.ts\" \"tsx src/workers/render.worker.ts\" \"tsx src/workers/keyword-extraction.worker.ts\" \"tsx src/workers/broll.worker.ts\" \"tsx src/workers/crop.worker.ts\"",
+    "dev:all": "concurrently \"tsx watch src/index.ts\" \"tsx watch src/workers/transcribe.worker.ts\" \"tsx watch src/workers/render.worker.ts\" \"tsx watch src/workers/keyword-extraction.worker.ts\" \"tsx watch src/workers/broll.worker.ts\" \"tsx watch src/workers/crop.worker.ts\""
   },
   "dependencies": {
     "@bull-board/api": "^7.2.1",
@@ -25,6 +26,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
     "ioredis": "^5.10.1",
     "minio": "^8.0.7",
     "openai": "^6.45.0",
@@ -37,6 +40,8 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
+    "@types/ffmpeg-static": "^3.0.3",
+    "@types/ffprobe-static": "^2.0.3",
     "@types/node": "^20.12.7",
     "@types/pg": "^8.20.0",
     "concurrently": "^10.0.3",

@@ -17,7 +17,7 @@ const HotKeySegmentSchema = z
       .number()
       .min(env.BROLL_MIN_ON_SCREEN_SEC)
       .max(env.BROLL_MAX_ON_SCREEN_SEC),
-    layout: z.literal("top-half-overlay"),
+    layout: z.enum(["top-half-overlay", "half-and-half"]),
   })
   .refine((s) => s.endTime > s.startTime)
   .refine((s) => s.endTime - s.startTime >= env.BROLL_MIN_ON_SCREEN_SEC, {

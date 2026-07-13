@@ -1,7 +1,19 @@
 import { prisma } from "../db/client";
 import { createVideoFlow } from "../flows/video.flow";
 import { JobStatus, StepStatus } from "../generated/prisma/enums";
+import { env } from "../config/env";
+import {
+  CropJobOptions,
+  CropStrategy,
+  PadBackground,
+} from "../types/crop";
+import {
+  SubtitleStyle,
+  SubtitleStyleInput,
+} from "../types/subtitle";
+import { LayoutMode } from "../types/layout";
 import { BUCKETS, minioClient } from "./minio.service";
+import { deliverJobWebhook } from "./webhook.service";
 
 export class EnqueueError extends Error {
   constructor(
@@ -13,10 +25,50 @@ export class EnqueueError extends Error {
   }
 }
 
-export async function createJob(objectName: string) {
+export function resolveCropOptions(input: {
+  cropStrategy?: CropStrategy;
+  padBackground?: PadBackground;
+}): CropJobOptions {
+  const cropStrategy = input.cropStrategy ?? env.CROP_STRATEGY;
+  const padBackground =
+    cropStrategy === "pad"
+      ? (input.padBackground ?? env.CROP_PAD_BACKGROUND)
+      : null;
+
+  return { cropStrategy, padBackground };
+}
+
+export function resolveSubtitleStyle(
+  input: SubtitleStyleInput = {},
+): SubtitleStyle {
+  return {
+    fontSize: input.subtitleFontSize ?? env.SUBTITLE_FONT_SIZE,
+    marginV: input.subtitleMarginV ?? env.SUBTITLE_MARGIN_V,
+    marginL: input.subtitleMarginL ?? env.SUBTITLE_MARGIN_L,
+    marginR: input.subtitleMarginR ?? env.SUBTITLE_MARGIN_R,
+    fontName: input.subtitleFontName ?? env.SUBTITLE_FONT_NAME,
+  };
+}
+
+export async function createJob(
+  objectName: string,
+  cropOptions: CropJobOptions,
+  subtitleStyle: SubtitleStyle,
+  webhookUrl?: string | null,
+  brollLayout?: LayoutMode | null,
+) {
   const job = await prisma.job.create({
     data: {
       objectName,
+      cropStrategy: cropOptions.cropStrategy,
+      padBackground: cropOptions.padBackground,
+      subtitleFontSize: subtitleStyle.fontSize,
+      subtitleMarginV: subtitleStyle.marginV,
+      subtitleMarginL: subtitleStyle.marginL,
+      subtitleMarginR: subtitleStyle.marginR,
+      subtitleFontName: subtitleStyle.fontName,
+      webhookUrl: webhookUrl ?? null,
+      brollLayout: brollLayout ?? null,
     },
   });
 
@@ -43,6 +95,18 @@ async function presignIntermediateAsset(
   );
 }
 
+async function presignFinalAsset(
+  objectKey: string | null,
+): Promise<string | null> {
+  if (!objectKey) return null;
+
+  return minioClient.presignedGetObject(
+    BUCKETS.FINAL_VIDEOS,
+    objectKey,
+    PRESIGN_TTL_SEC,
+  );
+}
+
 export async function getJobDetails(jobId: string) {
   const job = await getJob(jobId);
   if (!job) return null;
@@ -54,6 +118,9 @@ export async function getJobDetails(jobId: string) {
     subtitlesVttUrl,
     audioUrl,
     metadataUrl,
+    croppedUrl,
+    layoutUrl,
+    finalUrl,
   ] = await Promise.all([
     presignIntermediateAsset(job.transcriptJsonKey),
     presignIntermediateAsset(job.transcriptTextKey),
@@ -61,10 +128,15 @@ export async function getJobDetails(jobId: string) {
     presignIntermediateAsset(job.subtitlesVttKey),
     presignIntermediateAsset(`${jobId}/audio.wav`),
     presignIntermediateAsset(`${jobId}/metadata.json`),
+    presignIntermediateAsset(job.croppedVideoKey),
+    presignIntermediateAsset(job.layoutVideoKey),
+    presignFinalAsset(job.finalVideoKey),
   ]);
 
   return {
     ...job,
+    finalVideoUrl:
+      job.status === "completed" && finalUrl ? finalUrl : null,
     artifacts: {
       transcriptJson: transcriptJsonUrl,
       transcriptText: transcriptTextUrl,
@@ -72,6 +144,9 @@ export async function getJobDetails(jobId: string) {
       subtitlesVtt: subtitlesVttUrl,
       audio: audioUrl,
       metadata: metadataUrl,
+      cropped: croppedUrl,
+      layout: layoutUrl,
+      final: finalUrl,
     },
   };
 }
@@ -84,6 +159,9 @@ type UpdateJobData = Partial<{
   subtitlesVttKey: string;
   brollManifestKey: string;
   brollResolvedKey: string;
+  croppedVideoKey: string;
+  layoutVideoKey: string;
+  finalVideoKey: string;
 }>;
 
 export async function updateJobKeys(id: string, data: UpdateJobData) {
@@ -98,7 +176,7 @@ export async function updateJobKeys(id: string, data: UpdateJobData) {
 }
 
 export async function updateJobStatus(id: string, status: JobStatus) {
-  return await prisma.job.update({
+  const job = await prisma.job.update({
     where: {
       id,
     },
@@ -106,13 +184,53 @@ export async function updateJobStatus(id: string, status: JobStatus) {
       status,
     },
   });
+
+  if (status === "completed" || status === "failed") {
+    await deliverJobWebhook(id);
+  }
+
+  return job;
 }
 
-export async function createAndEnqueueJob(objectName: string) {
-  const job = await createJob(objectName);
+export async function createAndEnqueueJob(
+  objectName: string,
+  options: {
+    cropStrategy?: CropStrategy;
+    padBackground?: PadBackground;
+    webhookUrl?: string;
+    layout?: LayoutMode;
+  } & SubtitleStyleInput = {},
+) {
+  const {
+    cropStrategy,
+    padBackground,
+    subtitleFontSize,
+    subtitleMarginV,
+    subtitleMarginL,
+    subtitleMarginR,
+    subtitleFontName,
+    webhookUrl,
+    layout,
+  } = options;
+
+  const cropOptions = resolveCropOptions({ cropStrategy, padBackground });
+  const subtitleStyle = resolveSubtitleStyle({
+    subtitleFontSize,
+    subtitleMarginV,
+    subtitleMarginL,
+    subtitleMarginR,
+    subtitleFontName,
+  });
+  const job = await createJob(
+    objectName,
+    cropOptions,
+    subtitleStyle,
+    webhookUrl,
+    layout,
+  );
 
   try {
-    await createVideoFlow(objectName, job.id);
+    await createVideoFlow(objectName, job.id, cropOptions);
     return job;
   } catch (err) {
     await updateJobStatus(job.id, "failed");
@@ -132,6 +250,10 @@ const JOB_STEP_CONFIG = {
   broll: {
     statusField: "brollStatus",
     errorField: "brollError",
+  },
+  crop: {
+    statusField: "cropStatus",
+    errorField: "cropError",
   },
 } as const;
 
@@ -160,6 +282,9 @@ export async function updateJobStep(
 
     brollStatus?: StepStatus;
     brollError?: string | null;
+
+    cropStatus?: StepStatus;
+    cropError?: string | null;
   } = {
     [statusField]: status,
   };
@@ -178,5 +303,11 @@ export async function updateJobStep(
     data.status = "failed";
   }
 
-  return prisma.job.update({ where: { id: jobId }, data });
+  const job = await prisma.job.update({ where: { id: jobId }, data });
+
+  if (data.status === "failed") {
+    await deliverJobWebhook(jobId);
+  }
+
+  return job;
 }

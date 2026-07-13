@@ -1,6 +1,7 @@
 import { BUCKETS, minioClient } from "./minio.service";
-import { updateJobKeys } from "./job.service";
+import { getJob, updateJobKeys } from "./job.service";
 import { BrollManifestSchema } from "../types/broll-manifest";
+import { LAYOUT_MODES, LayoutMode } from "../types/layout";
 import {
   buildTranscriptWindows,
   maxAllowedHotKeys,
@@ -11,10 +12,19 @@ import openaiClient from "../utils/openAiClient";
 import { KEYWORD_SYSTEM_PROMPT } from "../utils/keywords-generation.instructions";
 import { enforceMinOnScreenDuration } from "../utils/broll-timing";
 
+function isLayoutMode(value: string): value is LayoutMode {
+  return (LAYOUT_MODES as readonly string[]).includes(value);
+}
+
 export async function generateManifestFromTranscript(
   jobId: string,
   durationSeconds: number,
 ) {
+  const job = await getJob(jobId);
+  if (!job) {
+    throw new Error(`Job ${jobId} not found`);
+  }
+
   const transcriptFilePath = `${jobId}/transcript.json`;
   const transcriptStream = await minioClient.getObject(
     BUCKETS.INTERMEDIATE_ASSETS,
@@ -25,9 +35,9 @@ export async function generateManifestFromTranscript(
   const windows = buildTranscriptWindows(transcript.segments ?? []);
 
   const completion = await openaiClient.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5.6-sol",
     response_format: { type: "json_object" },
-    temperature: 0.4,
+    // temperature: 0.4,
     messages: [
       { role: "system", content: KEYWORD_SYSTEM_PROMPT },
       {
@@ -51,10 +61,21 @@ export async function generateManifestFromTranscript(
     throw new Error("LLM response missing s`egments array");
   }
 
-  const normalizedSegments = enforceMinOnScreenDuration(
+  let normalizedSegments = enforceMinOnScreenDuration(
     llmJson.segments,
     durationSeconds,
   );
+
+  if (job.brollLayout) {
+    if (!isLayoutMode(job.brollLayout)) {
+      throw new Error(`Invalid job brollLayout: ${job.brollLayout}`);
+    }
+    const forcedLayout = job.brollLayout;
+    normalizedSegments = normalizedSegments.map((segment) => ({
+      ...segment,
+      layout: forcedLayout,
+    }));
+  }
 
   const manifestData = {
     version: 1 as const,

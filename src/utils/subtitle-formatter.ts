@@ -134,3 +134,71 @@ export function serializeVtt(cues: SubtitleCue[]): string {
 
   return cues.length ? `WEBVTT\n\n${body}\n` : "WEBVTT\n";
 }
+
+export type AssBurnStyle = {
+  fontName: string;
+  fontSize: number;
+  marginV: number;
+  marginL: number;
+  marginR: number;
+  playResX: number;
+  playResY: number;
+};
+
+/** Convert SRT timestamp (HH:MM:SS,mmm) to ASS (H:MM:SS.cs). */
+function srtTimeToAss(srtTime: string): string {
+  const match = srtTime.trim().match(/^(\d+):(\d{2}):(\d{2}),(\d{3})$/);
+  if (!match) return "0:00:00.00";
+  const [, h, m, s, ms] = match;
+  const cs = Math.round(Number(ms) / 10);
+  return `${Number(h)}:${m}:${s}.${String(cs).padStart(2, "0")}`;
+}
+
+/**
+ * Wrap SRT text into an ASS script with PlayRes matching the reel so
+ * FontSize / Margin* are interpreted in video pixels (9:16 safe zone).
+ */
+export function wrapSrtToAss(srtContent: string, style: AssBurnStyle): string {
+  const safeFont = style.fontName.replace(/[,]/g, "");
+  const header = `[Script Info]
+ScriptType: v4.00+
+PlayResX: ${style.playResX}
+PlayResY: ${style.playResY}
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,${safeFont},${style.fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,3,1,2,${style.marginL},${style.marginR},${style.marginV},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+  const blocks = srtContent.replace(/\r\n/g, "\n").trim().split(/\n\n+/);
+  const dialogues: string[] = [];
+
+  for (const block of blocks) {
+    const lines = block.split("\n").filter((l) => l.length > 0);
+    if (lines.length < 2) continue;
+
+    let idx = 0;
+    if (/^\d+$/.test(lines[0]!)) idx = 1;
+    const timeLine = lines[idx];
+    if (!timeLine?.includes("-->")) continue;
+
+    const [startRaw, endRaw] = timeLine.split("-->").map((s) => s.trim());
+    if (!startRaw || !endRaw) continue;
+
+    const text = lines
+      .slice(idx + 1)
+      .join("\\N")
+      .replace(/[{}]/g, "");
+
+    dialogues.push(
+      `Dialogue: 0,${srtTimeToAss(startRaw)},${srtTimeToAss(endRaw)},Default,,0,0,0,,${text}`,
+    );
+  }
+
+  return header + dialogues.join("\n") + (dialogues.length ? "\n" : "");
+}

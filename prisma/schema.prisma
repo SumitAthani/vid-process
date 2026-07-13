@@ -27,6 +27,17 @@ enum StepStatus {
   failed
 }
 
+enum CropStrategy {
+  center
+  pad
+}
+
+enum PadBackground {
+  black
+  white
+  blur
+}
+
 model Job {
   id         String    @id @default(uuid()) @db.Uuid
   objectName String    @map("object_name")
@@ -55,6 +66,32 @@ model Job {
   brollStatus      StepStatus? @default(to_be_queued) @map("broll_status")
   brollError       String?     @map("broll_error")
   brollResolvedKey String?     @map("broll_resolved_key")
+
+  // primary video crop (9:16)
+  cropStatus       StepStatus    @default(to_be_queued) @map("crop_status")
+  cropError        String?       @map("crop_error")
+  croppedVideoKey  String?       @map("cropped_video_key")
+  cropStrategy     CropStrategy  @default(center) @map("crop_strategy")
+  padBackground    PadBackground? @map("pad_background")
+
+  // layout composition (B-roll overlays)
+  layoutVideoKey String? @map("layout_video_key")
+  // optional job-wide B-roll layout override ("top-half-overlay" | "half-and-half")
+  brollLayout    String? @map("broll_layout")
+
+  // final reel with burned-in subtitles
+  finalVideoKey String? @map("final_video_key")
+
+  // subtitle burn-in style (resolved at job create from body + env defaults)
+  subtitleFontSize Int    @default(48) @map("subtitle_font_size")
+  subtitleMarginV  Int    @default(360) @map("subtitle_margin_v")
+  subtitleMarginL  Int    @default(80) @map("subtitle_margin_l")
+  subtitleMarginR  Int    @default(140) @map("subtitle_margin_r")
+  subtitleFontName String @default("Arial") @map("subtitle_font_name")
+
+  // outbound completion webhook (per-job URL; falls back to JOB_WEBHOOK_URL env)
+  webhookUrl    String?   @map("webhook_url")
+  webhookSentAt DateTime? @map("webhook_sent_at")
 
   @@map("jobs")
 }
