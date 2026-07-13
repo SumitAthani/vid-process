@@ -42,7 +42,7 @@ const BrollResolvedSchema = z.object({
 
 /**
  * Download cropped primary + resolved B-roll clips, composite layouts, upload result.
- * Subtitle burn / final packaging is deferred to §3.4.
+ * Final subtitle burn happens in packageFinalReel.
  */
 export async function composeJobLayouts(jobId: string): Promise<{
   layoutVideoKey: string;

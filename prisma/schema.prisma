@@ -74,8 +74,24 @@ model Job {
   cropStrategy     CropStrategy  @default(center) @map("crop_strategy")
   padBackground    PadBackground? @map("pad_background")
 
-  // layout composition (B-roll overlays; subtitles deferred to final stitch)
+  // layout composition (B-roll overlays)
   layoutVideoKey String? @map("layout_video_key")
+  // optional job-wide B-roll layout override ("top-half-overlay" | "half-and-half")
+  brollLayout    String? @map("broll_layout")
+
+  // final reel with burned-in subtitles
+  finalVideoKey String? @map("final_video_key")
+
+  // subtitle burn-in style (resolved at job create from body + env defaults)
+  subtitleFontSize Int    @default(48) @map("subtitle_font_size")
+  subtitleMarginV  Int    @default(360) @map("subtitle_margin_v")
+  subtitleMarginL  Int    @default(80) @map("subtitle_margin_l")
+  subtitleMarginR  Int    @default(140) @map("subtitle_margin_r")
+  subtitleFontName String @default("Arial") @map("subtitle_font_name")
+
+  // outbound completion webhook (per-job URL; falls back to JOB_WEBHOOK_URL env)
+  webhookUrl    String?   @map("webhook_url")
+  webhookSentAt DateTime? @map("webhook_sent_at")
 
   @@map("jobs")
 }

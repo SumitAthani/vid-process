@@ -6,11 +6,19 @@ import {
   getJobDetails,
 } from "../services/job.service";
 import { CROP_STRATEGIES, PAD_BACKGROUNDS } from "../types/crop";
+import { LAYOUT_MODES } from "../types/layout";
 
 const createJobBodySchema = z.object({
   objectName: z.string().min(1),
   cropStrategy: z.enum(CROP_STRATEGIES).optional(),
   padBackground: z.enum(PAD_BACKGROUNDS).optional(),
+  subtitleFontSize: z.coerce.number().int().min(24).max(96).optional(),
+  subtitleMarginV: z.coerce.number().int().min(0).max(800).optional(),
+  subtitleMarginL: z.coerce.number().int().min(0).max(400).optional(),
+  subtitleMarginR: z.coerce.number().int().min(0).max(400).optional(),
+  subtitleFontName: z.string().min(1).max(64).optional(),
+  webhookUrl: z.url().optional(),
+  layout: z.enum(LAYOUT_MODES).optional(),
 });
 
 const router = Router();
@@ -25,10 +33,29 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const { objectName, cropStrategy, padBackground } = parsed.data;
+    const {
+      objectName,
+      cropStrategy,
+      padBackground,
+      subtitleFontSize,
+      subtitleMarginV,
+      subtitleMarginL,
+      subtitleMarginR,
+      subtitleFontName,
+      webhookUrl,
+      layout,
+    } = parsed.data;
+
     const job = await createAndEnqueueJob(objectName, {
       cropStrategy,
       padBackground,
+      subtitleFontSize,
+      subtitleMarginV,
+      subtitleMarginL,
+      subtitleMarginR,
+      subtitleFontName,
+      webhookUrl,
+      layout,
     });
 
     req.log.info(
@@ -37,6 +64,11 @@ router.post("/", async (req, res) => {
         objectName,
         cropStrategy: job.cropStrategy,
         padBackground: job.padBackground,
+        subtitleFontSize: job.subtitleFontSize,
+        subtitleMarginV: job.subtitleMarginV,
+        subtitleFontName: job.subtitleFontName,
+        webhookUrl: job.webhookUrl,
+        brollLayout: job.brollLayout,
       },
       "Job created and enqueued",
     );

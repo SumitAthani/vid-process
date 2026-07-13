@@ -7,7 +7,13 @@ import {
   CropStrategy,
   PadBackground,
 } from "../types/crop";
+import {
+  SubtitleStyle,
+  SubtitleStyleInput,
+} from "../types/subtitle";
+import { LayoutMode } from "../types/layout";
 import { BUCKETS, minioClient } from "./minio.service";
+import { deliverJobWebhook } from "./webhook.service";
 
 export class EnqueueError extends Error {
   constructor(
@@ -32,15 +38,37 @@ export function resolveCropOptions(input: {
   return { cropStrategy, padBackground };
 }
 
+export function resolveSubtitleStyle(
+  input: SubtitleStyleInput = {},
+): SubtitleStyle {
+  return {
+    fontSize: input.subtitleFontSize ?? env.SUBTITLE_FONT_SIZE,
+    marginV: input.subtitleMarginV ?? env.SUBTITLE_MARGIN_V,
+    marginL: input.subtitleMarginL ?? env.SUBTITLE_MARGIN_L,
+    marginR: input.subtitleMarginR ?? env.SUBTITLE_MARGIN_R,
+    fontName: input.subtitleFontName ?? env.SUBTITLE_FONT_NAME,
+  };
+}
+
 export async function createJob(
   objectName: string,
   cropOptions: CropJobOptions,
+  subtitleStyle: SubtitleStyle,
+  webhookUrl?: string | null,
+  brollLayout?: LayoutMode | null,
 ) {
   const job = await prisma.job.create({
     data: {
       objectName,
       cropStrategy: cropOptions.cropStrategy,
       padBackground: cropOptions.padBackground,
+      subtitleFontSize: subtitleStyle.fontSize,
+      subtitleMarginV: subtitleStyle.marginV,
+      subtitleMarginL: subtitleStyle.marginL,
+      subtitleMarginR: subtitleStyle.marginR,
+      subtitleFontName: subtitleStyle.fontName,
+      webhookUrl: webhookUrl ?? null,
+      brollLayout: brollLayout ?? null,
     },
   });
 
@@ -67,6 +95,18 @@ async function presignIntermediateAsset(
   );
 }
 
+async function presignFinalAsset(
+  objectKey: string | null,
+): Promise<string | null> {
+  if (!objectKey) return null;
+
+  return minioClient.presignedGetObject(
+    BUCKETS.FINAL_VIDEOS,
+    objectKey,
+    PRESIGN_TTL_SEC,
+  );
+}
+
 export async function getJobDetails(jobId: string) {
   const job = await getJob(jobId);
   if (!job) return null;
@@ -80,6 +120,7 @@ export async function getJobDetails(jobId: string) {
     metadataUrl,
     croppedUrl,
     layoutUrl,
+    finalUrl,
   ] = await Promise.all([
     presignIntermediateAsset(job.transcriptJsonKey),
     presignIntermediateAsset(job.transcriptTextKey),
@@ -89,10 +130,13 @@ export async function getJobDetails(jobId: string) {
     presignIntermediateAsset(`${jobId}/metadata.json`),
     presignIntermediateAsset(job.croppedVideoKey),
     presignIntermediateAsset(job.layoutVideoKey),
+    presignFinalAsset(job.finalVideoKey),
   ]);
 
   return {
     ...job,
+    finalVideoUrl:
+      job.status === "completed" && finalUrl ? finalUrl : null,
     artifacts: {
       transcriptJson: transcriptJsonUrl,
       transcriptText: transcriptTextUrl,
@@ -102,6 +146,7 @@ export async function getJobDetails(jobId: string) {
       metadata: metadataUrl,
       cropped: croppedUrl,
       layout: layoutUrl,
+      final: finalUrl,
     },
   };
 }
@@ -116,6 +161,7 @@ type UpdateJobData = Partial<{
   brollResolvedKey: string;
   croppedVideoKey: string;
   layoutVideoKey: string;
+  finalVideoKey: string;
 }>;
 
 export async function updateJobKeys(id: string, data: UpdateJobData) {
@@ -130,7 +176,7 @@ export async function updateJobKeys(id: string, data: UpdateJobData) {
 }
 
 export async function updateJobStatus(id: string, status: JobStatus) {
-  return await prisma.job.update({
+  const job = await prisma.job.update({
     where: {
       id,
     },
@@ -138,17 +184,50 @@ export async function updateJobStatus(id: string, status: JobStatus) {
       status,
     },
   });
+
+  if (status === "completed" || status === "failed") {
+    await deliverJobWebhook(id);
+  }
+
+  return job;
 }
 
 export async function createAndEnqueueJob(
   objectName: string,
-  cropInput: {
+  options: {
     cropStrategy?: CropStrategy;
     padBackground?: PadBackground;
-  } = {},
+    webhookUrl?: string;
+    layout?: LayoutMode;
+  } & SubtitleStyleInput = {},
 ) {
-  const cropOptions = resolveCropOptions(cropInput);
-  const job = await createJob(objectName, cropOptions);
+  const {
+    cropStrategy,
+    padBackground,
+    subtitleFontSize,
+    subtitleMarginV,
+    subtitleMarginL,
+    subtitleMarginR,
+    subtitleFontName,
+    webhookUrl,
+    layout,
+  } = options;
+
+  const cropOptions = resolveCropOptions({ cropStrategy, padBackground });
+  const subtitleStyle = resolveSubtitleStyle({
+    subtitleFontSize,
+    subtitleMarginV,
+    subtitleMarginL,
+    subtitleMarginR,
+    subtitleFontName,
+  });
+  const job = await createJob(
+    objectName,
+    cropOptions,
+    subtitleStyle,
+    webhookUrl,
+    layout,
+  );
 
   try {
     await createVideoFlow(objectName, job.id, cropOptions);
@@ -224,5 +303,11 @@ export async function updateJobStep(
     data.status = "failed";
   }
 
-  return prisma.job.update({ where: { id: jobId }, data });
+  const job = await prisma.job.update({ where: { id: jobId }, data });
+
+  if (data.status === "failed") {
+    await deliverJobWebhook(jobId);
+  }
+
+  return job;
 }

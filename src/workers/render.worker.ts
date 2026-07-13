@@ -3,6 +3,7 @@ import { Worker } from "bullmq";
 import { connection } from "../queues/connection";
 import { updateJobStatus } from "../services/job.service";
 import { composeJobLayouts } from "../services/layout.service";
+import { packageFinalReel } from "../services/final.service";
 import { logger } from "../utils/logger";
 import { BUCKETS, minioClient } from "../services/minio.service";
 
@@ -14,21 +15,27 @@ const worker = new Worker(
 
     try {
       await updateJobStatus(jobId, "processing");
-      jobLogger.info("Composing layouts (subtitles deferred to §3.4)");
+      jobLogger.info("Composing layouts");
 
       // Parent render waits for crop + broll children via BullMQ flow
       const { layoutVideoKey, segmentCount } = await composeJobLayouts(jobId);
 
+      jobLogger.info("Burning subtitles into final reel");
+      const { finalVideoKey } = await packageFinalReel(jobId);
+
       const videoUrl = await minioClient.presignedGetObject(
-        BUCKETS.INTERMEDIATE_ASSETS,
-        layoutVideoKey,
+        BUCKETS.FINAL_VIDEOS,
+        finalVideoKey,
         60 * 60,
       );
 
       await updateJobStatus(jobId, "completed");
-      jobLogger.info({ layoutVideoKey, segmentCount }, "Layout render complete");
+      jobLogger.info(
+        { layoutVideoKey, finalVideoKey, segmentCount },
+        "Final render complete",
+      );
 
-      return { layoutVideoKey, videoUrl, segmentCount };
+      return { layoutVideoKey, finalVideoKey, videoUrl, segmentCount };
     } catch (err) {
       await updateJobStatus(jobId, "failed");
       throw err;
