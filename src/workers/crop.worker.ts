@@ -133,7 +133,12 @@ const worker = new Worker(
       if (workDir) await cleanupWorkDir(workDir);
     }
   },
-  { connection },
+  {
+    connection,
+    lockDuration: 300000,
+    maxStalledCount: 2,
+    stalledInterval: 60000,
+  },
 );
 
 worker.on("completed", (job) => {

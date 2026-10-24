@@ -53,6 +53,7 @@ export async function extractAudio(
   const localAudioPath = path.join(workDir, "audio.wav");
 
   await execFileAsync(env.FFMPEG_PATH, [
+    "-nostdin",
     "-y",
     "-i",
     localVideoPath,
@@ -91,6 +92,7 @@ export async function fitClipToDuration(
 
   if (plan.strategy === "none") {
     await execFileAsync(env.FFMPEG_PATH, [
+      "-nostdin",
       "-y",
       "-i",
       inputPath,
@@ -103,6 +105,7 @@ export async function fitClipToDuration(
 
   if (plan.strategy === "trim") {
     await execFileAsync(env.FFMPEG_PATH, [
+      "-nostdin",
       "-y",
       "-ss",
       String(plan.trimStart),
@@ -116,6 +119,7 @@ export async function fitClipToDuration(
   }
 
   await execFileAsync(env.FFMPEG_PATH, [
+    "-nostdin",
     "-y",
     "-stream_loop",
     String(plan.loopCount),
@@ -131,6 +135,10 @@ export async function fitClipToDuration(
 const ENCODE_ARGS = [
   "-c:v",
   "libx264",
+  "-preset",
+  "veryfast",
+  "-threads",
+  "2",
   "-pix_fmt",
   "yuv420p",
   "-movflags",
@@ -163,6 +171,7 @@ export async function fitPrimaryToVertical(
     const bg = padBackground ?? "blur";
     if (bg === "blur") {
       await execFileAsync(env.FFMPEG_PATH, [
+        "-nostdin",
         "-y",
         "-i",
         inputPath,
@@ -179,6 +188,7 @@ export async function fitPrimaryToVertical(
     const color = bg === "white" ? "white" : "black";
     const vf = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:${color}`;
     await execFileAsync(env.FFMPEG_PATH, [
+      "-nostdin",
       "-y",
       "-i",
       inputPath,
@@ -193,6 +203,7 @@ export async function fitPrimaryToVertical(
   // center crop
   const vf = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
   await execFileAsync(env.FFMPEG_PATH, [
+    "-nostdin",
     "-y",
     "-i",
     inputPath,
@@ -231,6 +242,7 @@ export async function composeWithLayouts(
 
   if (segments.length === 0) {
     await execFileAsync(env.FFMPEG_PATH, [
+      "-nostdin",
       "-y",
       "-i",
       primaryPath,
@@ -254,7 +266,7 @@ export async function composeWithLayouts(
     transitionSec,
   });
 
-  const args: string[] = ["-y", "-i", primaryPath];
+  const args: string[] = ["-nostdin", "-y", "-i", primaryPath];
   for (const seg of segments) {
     args.push("-i", seg.clipPath);
   }
@@ -361,6 +373,7 @@ export async function burnSubtitles(
   await execFileAsync(
     env.FFMPEG_PATH,
     [
+      "-nostdin",
       "-y",
       "-i",
       inputAbs,
@@ -368,6 +381,10 @@ export async function burnSubtitles(
       vf,
       "-c:v",
       "libx264",
+      "-preset",
+      "veryfast",
+      "-threads",
+      "2",
       "-pix_fmt",
       "yuv420p",
       "-movflags",

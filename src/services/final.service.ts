@@ -7,6 +7,7 @@ import {
 import { burnSubtitles } from "./media.service";
 import { BUCKETS, minioClient, uploadLocalFile } from "./minio.service";
 import { logger } from "../utils/logger";
+import { env } from "../config/env";
 
 /**
  * Download layout-composited video + SRT, burn captions, upload final reel.
@@ -44,8 +45,13 @@ export async function packageFinalReel(jobId: string): Promise<{
       srtLocal,
     );
 
+    const fontName =
+      job.subtitleFontName === "Arial" && env.SUBTITLE_FONT_NAME !== "Arial"
+        ? env.SUBTITLE_FONT_NAME
+        : job.subtitleFontName;
+
     await burnSubtitles(layoutLocal, srtLocal, outputLocal, {
-      fontName: job.subtitleFontName,
+      fontName,
       fontSize: job.subtitleFontSize,
       marginV: job.subtitleMarginV,
       marginL: job.subtitleMarginL,
