@@ -5,7 +5,7 @@ import { updateJobStatus } from "../services/job.service";
 import { composeJobLayouts } from "../services/layout.service";
 import { packageFinalReel } from "../services/final.service";
 import { logger } from "../utils/logger";
-import { BUCKETS, minioClient } from "../services/minio.service";
+import { BUCKETS, minioClient, publicMinioClient } from "../services/minio.service";
 
 const worker = new Worker(
   "render",
@@ -23,7 +23,7 @@ const worker = new Worker(
       jobLogger.info("Burning subtitles into final reel");
       const { finalVideoKey } = await packageFinalReel(jobId);
 
-      const videoUrl = await minioClient.presignedGetObject(
+      const videoUrl = await publicMinioClient.presignedGetObject(
         BUCKETS.FINAL_VIDEOS,
         finalVideoKey,
         60 * 60,

@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { minioClient, BUCKETS } from "../services/minio.service";
+import { publicMinioClient, BUCKETS } from "../services/minio.service";
+import { env } from "../config/env";
 import crypto from "crypto";
 
 const router = Router();
@@ -21,7 +22,7 @@ router.post("/presigned-upload", async (req, res) => {
     // expiry in seconds
     const expiry = 60 * 10;
 
-    const presignedUrl = await minioClient.presignedPutObject(
+    const presignedUrl = await publicMinioClient.presignedPutObject(
       BUCKETS.RAW_VIDEOS,
       objectName,
       expiry
@@ -29,10 +30,14 @@ router.post("/presigned-upload", async (req, res) => {
 
     req.log.info({ fileName, objectName }, "Presigned upload URL generated");
 
+    const host = env.MINIO_PUBLIC_ENDPOINT ?? env.MINIO_ENDPOINT;
+    const port = env.MINIO_PUBLIC_PORT ?? env.MINIO_PORT;
+    const proto = env.MINIO_USE_SSL ? "https" : "http";
+
     return res.json({
       uploadUrl: presignedUrl,
       objectName,
-      publicUrl: `http://localhost:9000/${BUCKETS.RAW_VIDEOS}/${objectName}`,
+      publicUrl: `${proto}://${host}:${port}/${BUCKETS.RAW_VIDEOS}/${objectName}`,
     });
   } catch (err) {
     req.log.error(err, "Failed to generate presigned URL");

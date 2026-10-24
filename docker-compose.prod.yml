@@ -67,6 +67,10 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgrespassword}@postgres:5432/${POSTGRES_DB:-my_database}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-${MINIO_ENDPOINT}}
+      MINIO_PUBLIC_PORT: ${MINIO_PUBLIC_PORT:-9000}
       SUBTITLE_FONTS_DIR: /usr/share/fonts/truetype/dejavu
       SUBTITLE_FONT_NAME: DejaVuSans
     restart: always

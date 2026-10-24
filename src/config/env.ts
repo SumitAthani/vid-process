@@ -29,6 +29,8 @@ const envSchema = z
     MINIO_PORT: z.coerce.number(),
     MINIO_ACCESS_KEY: z.string().min(1, "Access key is required"),
     MINIO_SECRET_KEY: z.string().min(1, "Secret key is required"),
+    MINIO_PUBLIC_ENDPOINT: z.string().optional(),
+    MINIO_PUBLIC_PORT: z.coerce.number().optional(),
     // Keep your custom transform here; z.coerce.boolean() is unsafe for "false"
     MINIO_USE_SSL: z
       .enum(["true", "false"])

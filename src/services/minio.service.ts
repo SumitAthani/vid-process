@@ -13,6 +13,16 @@ export const minioClient = new Client({
   secretKey: env.MINIO_SECRET_KEY,
 });
 
+export const publicMinioClient = env.MINIO_PUBLIC_ENDPOINT
+  ? new Client({
+      endPoint: env.MINIO_PUBLIC_ENDPOINT,
+      port: env.MINIO_PUBLIC_PORT ?? env.MINIO_PORT,
+      useSSL: env.MINIO_USE_SSL,
+      accessKey: env.MINIO_ACCESS_KEY,
+      secretKey: env.MINIO_SECRET_KEY,
+    })
+  : minioClient;
+
 // Exporting these as constants makes it easy to import them
 // into other files without risking typos in the string names.
 export const BUCKETS = {
