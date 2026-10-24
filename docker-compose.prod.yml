@@ -29,9 +29,9 @@ services:
       timeout: 5s
       retries: 5
 
-  # MinIO S3-Compatible Object Storage
+  # MinIO S3-Compatible Object Storage (via community-maintained Silo image)
   minio:
-    image: minio/minio:latest
+    image: pgsty/silo:latest
     container_name: vid_minio
     ports:
       - "9000:9000" # S3 API (presigned uploads/downloads)

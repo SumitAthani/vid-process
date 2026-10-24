@@ -7,7 +7,8 @@ WORKDIR /app
 COPY package*.json tsconfig.json ./
 RUN npm ci
 
-# Copy Prisma schema and generate client
+# Copy Prisma schema and config
+COPY prisma.config.ts ./
 COPY prisma ./prisma
 RUN npx prisma generate
 
@@ -37,7 +38,8 @@ ENV SUBTITLE_FONT_NAME=DejaVuSans
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy Prisma schema and generated client
+# Copy Prisma schema, config and generated client
+COPY prisma.config.ts ./
 COPY prisma ./prisma
 RUN npx prisma generate
 

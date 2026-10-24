@@ -1,7 +1,7 @@
 services:
   # MinIO Object Storage
   minio:
-    image: minio/minio:latest
+    image: pgsty/silo:latest
     container_name: minio_service
     ports:
       - "9000:9000" # API
