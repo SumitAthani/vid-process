@@ -1,0 +1,77 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: vid_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgrespassword}
+      POSTGRES_DB: ${POSTGRES_DB:-my_database}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache & BullMQ Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: vid_redis
+    volumes:
+      - redis_data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # MinIO S3-Compatible Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: vid_minio
+    ports:
+      - "9000:9000" # S3 API (presigned uploads/downloads)
+      - "9001:9001" # Web Dashboard Console
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadminpassword}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: always
+
+  # Backend App: Express API + 5 BullMQ Workers
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vid_api
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgrespassword}@postgres:5432/${POSTGRES_DB:-my_database}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SUBTITLE_FONTS_DIR: /usr/share/fonts/truetype/dejavu
+      SUBTITLE_FONT_NAME: DejaVuSans
+    restart: always
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
