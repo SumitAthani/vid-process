@@ -10,6 +10,7 @@ RUN npm ci
 # Copy Prisma schema and config
 COPY prisma.config.ts ./
 COPY prisma ./prisma
+ENV DATABASE_URL="postgresql://postgres:postgrespassword@postgres:5432/my_database"
 RUN npx prisma generate
 
 # Copy source code and build TypeScript to dist/
@@ -41,6 +42,7 @@ RUN npm ci --omit=dev
 # Copy Prisma schema, config and generated client
 COPY prisma.config.ts ./
 COPY prisma ./prisma
+ENV DATABASE_URL="postgresql://postgres:postgrespassword@postgres:5432/my_database"
 RUN npx prisma generate
 
 # Copy compiled JavaScript from builder stage
