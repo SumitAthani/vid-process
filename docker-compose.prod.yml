@@ -33,15 +33,29 @@ services:
   minio:
     image: pgsty/silo:latest
     container_name: vid_minio
+    expose:
+      - "9000"
     ports:
-      - "9000:9000" # S3 API (presigned uploads/downloads)
       - "9001:9001" # Web Dashboard Console
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadminpassword}
+      MINIO_API_CORS_ALLOW_ORIGINS: "*"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
+    restart: always
+
+  # MinIO Reverse Proxy (strips CloudFront x-amz-cf-id to allow SigV4 presigned uploads)
+  minio-proxy:
+    image: nginx:alpine
+    container_name: vid_minio_proxy
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./nginx-minio.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - minio
     restart: always
 
   # Backend App: Express API + 5 BullMQ Workers
