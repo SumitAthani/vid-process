@@ -8,7 +8,7 @@ export function halfHeight(height: number): number {
   return Math.floor(height / 2) & ~1;
 }
 
-function clampTransitionSec(transitionSec: number, windowDur: number): number {
+export function clampTransitionSec(transitionSec: number, windowDur: number): number {
   if (windowDur <= 0) return 0;
   return Math.min(Math.max(0, transitionSec), windowDur / 2);
 }
@@ -83,6 +83,42 @@ export function buildLayoutFilterGraph(
       );
     }
 
+    currentLabel = `[${outPad}]`;
+  }
+
+  return {
+    filterComplex: filters.join(";"),
+    outputLabel: currentLabel,
+  };
+}
+
+/**
+ * Build a streamlined filter_complex for pre-baked segments.
+ * Overlays each pre-baked clip (which already has alpha/fades and sizing)
+ * onto the primary video timeline without any inline trim or vstack.
+ */
+export function buildPrebakedOverlayFilterGraph(opts: {
+  segments: Array<{ inputIndex: number; startTime: number; endTime: number }>;
+}): LayoutGraphResult {
+  const { segments } = opts;
+  if (segments.length === 0) {
+    return { filterComplex: "", outputLabel: "[0:v]" };
+  }
+
+  const filters: string[] = [];
+  let currentLabel = "[0:v]";
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]!;
+    const outPad = `v${i}`;
+    const enable = `between(t\\,${seg.startTime}\\,${seg.endTime})`;
+
+    filters.push(
+      `[${seg.inputIndex}:v]setpts=PTS-STARTPTS+${seg.startTime}/TB[ov${i}]`,
+    );
+    filters.push(
+      `${currentLabel}[ov${i}]overlay=0:0:eof_action=pass:enable='${enable}'[${outPad}]`,
+    );
     currentLabel = `[${outPad}]`;
   }
 
