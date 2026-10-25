@@ -29,7 +29,7 @@ export async function ingestMedia(
 
   const localAudioPath = await extractAudio(localVideoPath, workDir);
 
-  const audioObjectKey = `${jobId}/audio.wav`;
+  const audioObjectKey = `${jobId}/audio.mp3`;
   const metadataObjectKey = `${jobId}/metadata.json`;
   const localMetaPath = path.join(workDir, "metadata.json");
 
@@ -39,7 +39,7 @@ export async function ingestMedia(
     BUCKETS.INTERMEDIATE_ASSETS,
     audioObjectKey,
     localAudioPath,
-    "audio/wav",
+    "audio/mpeg",
   );
   await uploadLocalFile(
     BUCKETS.INTERMEDIATE_ASSETS,

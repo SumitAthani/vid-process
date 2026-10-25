@@ -18,8 +18,8 @@ export async function transcribeAudioFile(
 ): Promise<TranscriptResult> {
   const audioFile = await toFile(
     fs.createReadStream(localAudioPath),
-    "audio.wav",
-    { type: "audio/wav" },
+    "audio.mp3",
+    { type: "audio/mpeg" },
   );
 
   const result = await openaiClient.audio.transcriptions.create({

@@ -55,7 +55,7 @@ export async function extractAudio(
   localVideoPath: string,
   workDir: string,
 ): Promise<string> {
-  const localAudioPath = path.join(workDir, "audio.wav");
+  const localAudioPath = path.join(workDir, "audio.mp3");
 
   await execFileAsync(env.FFMPEG_PATH, [
     "-nostdin",
@@ -63,8 +63,10 @@ export async function extractAudio(
     "-i",
     localVideoPath,
     "-vn",
-    "-acodec",
-    "pcm_s16le",
+    "-c:a",
+    "libmp3lame",
+    "-b:a",
+    "64k",
     "-ar",
     "16000",
     "-ac",
@@ -181,7 +183,7 @@ export async function fitPrimaryToVertical(
         "-i",
         inputPath,
         "-filter_complex",
-        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},gblur=sigma=20[bg];` +
+        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=luma_radius=15:luma_power=2[bg];` +
           `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease[fg];` +
           `[bg][fg]overlay=(W-w)/2:(H-h)/2`,
         ...ENCODE_ARGS,
@@ -313,19 +315,76 @@ export async function prebakeSegment(opts: {
 export async function composeWithLayouts(
   opts: ComposeWithLayoutsOpts,
 ): Promise<string> {
-  const { primaryPath, outputPath, width, height, segments, transitionMs } =
-    opts;
+  const {
+    primaryPath,
+    outputPath,
+    width,
+    height,
+    segments,
+    transitionMs,
+    subtitles,
+  } = opts;
+
+  let assPath: string | null = null;
+  let assDir: string | null = null;
+
+  if (subtitles) {
+    await assertSubtitlesFilterSupport();
+    assDir = path.dirname(path.resolve(subtitles.srtPath));
+    assPath = path.join(assDir, "burn.ass");
+    const srtContent = await fs.readFile(
+      path.resolve(subtitles.srtPath),
+      "utf8",
+    );
+    const assContent = wrapSrtToAss(srtContent, {
+      fontName: subtitles.fontName,
+      fontSize: subtitles.fontSize,
+      marginV: subtitles.marginV,
+      marginL: subtitles.marginL,
+      marginR: subtitles.marginR,
+      playResX: width,
+      playResY: height,
+    });
+    await fs.writeFile(assPath, assContent, "utf8");
+  }
 
   if (segments.length === 0) {
-    await execFileAsync(env.FFMPEG_PATH, [
-      "-nostdin",
-      "-y",
-      "-i",
-      primaryPath,
-      ...ENCODE_ARGS,
-      outputPath,
-    ]);
-    return outputPath;
+    try {
+      if (subtitles && assPath && assDir) {
+        const fontsDir = escapeFilterPath(env.SUBTITLE_FONTS_DIR);
+        const assName = path.basename(assPath);
+        const vf = `subtitles='${escapeFilterPath(assName)}':fontsdir='${fontsDir}'`;
+        await execFileAsync(
+          env.FFMPEG_PATH,
+          [
+            "-nostdin",
+            "-y",
+            "-i",
+            primaryPath,
+            "-vf",
+            vf,
+            ...ENCODE_ARGS,
+            outputPath,
+          ],
+          { cwd: assDir },
+        );
+        return outputPath;
+      }
+
+      await execFileAsync(env.FFMPEG_PATH, [
+        "-nostdin",
+        "-y",
+        "-i",
+        primaryPath,
+        ...ENCODE_ARGS,
+        outputPath,
+      ]);
+      return outputPath;
+    } finally {
+      if (assPath) {
+        await fs.unlink(assPath).catch(() => {});
+      }
+    }
   }
 
   const workDir = path.dirname(outputPath);
@@ -361,6 +420,16 @@ export async function composeWithLayouts(
       segments: overlaySegments,
     });
 
+    let finalFilterComplex = filterComplex;
+    let finalOutputLabel = outputLabel;
+
+    if (subtitles && assPath && assDir) {
+      const fontsDir = escapeFilterPath(env.SUBTITLE_FONTS_DIR);
+      const assName = path.basename(assPath);
+      finalFilterComplex += `;${outputLabel}subtitles='${escapeFilterPath(assName)}':fontsdir='${fontsDir}'[vout]`;
+      finalOutputLabel = "[vout]";
+    }
+
     const args: string[] = ["-nostdin", "-y", "-i", primaryPath];
     for (const pbPath of prebakedPaths) {
       args.push("-i", pbPath);
@@ -368,21 +437,28 @@ export async function composeWithLayouts(
 
     args.push(
       "-filter_complex",
-      filterComplex,
+      finalFilterComplex,
       "-map",
-      outputLabel,
+      finalOutputLabel,
       "-map",
       "0:a?",
       ...ENCODE_ARGS,
       outputPath,
     );
 
-    await execFileAsync(env.FFMPEG_PATH, args);
+    await execFileAsync(
+      env.FFMPEG_PATH,
+      args,
+      assDir ? { cwd: assDir } : undefined,
+    );
     return outputPath;
   } finally {
-    // Clean up temporary prebaked segment files
+    // Clean up temporary prebaked segment files & ASS file
     for (const pbPath of prebakedPaths) {
       await fs.unlink(pbPath).catch(() => {});
+    }
+    if (assPath) {
+      await fs.unlink(assPath).catch(() => {});
     }
   }
 }

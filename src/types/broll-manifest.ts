@@ -20,12 +20,22 @@ const HotKeySegmentSchema = z
     layout: z.enum(["top-half-overlay", "half-and-half"]),
   })
   .refine((s) => s.endTime > s.startTime)
-  .refine((s) => s.endTime - s.startTime >= env.BROLL_MIN_ON_SCREEN_SEC, {
-    message: `on-screen duration must be ≥ ${env.BROLL_MIN_ON_SCREEN_SEC}s`,
-  })
-  .refine((s) => s.minDuration <= s.endTime - s.startTime, {
-    message: "minDuration must not exceed on-screen window",
-  });
+  .refine(
+    (s) =>
+      Math.round((s.endTime - s.startTime) * 1000) / 1000 >=
+      env.BROLL_MIN_ON_SCREEN_SEC - 0.001,
+    {
+      message: `on-screen duration must be ≥ ${env.BROLL_MIN_ON_SCREEN_SEC}s`,
+    },
+  )
+  .refine(
+    (s) =>
+      s.minDuration <=
+      Math.round((s.endTime - s.startTime) * 1000) / 1000 + 0.001,
+    {
+      message: "minDuration must not exceed on-screen window",
+    },
+  );
 
 export const BrollManifestSchema = z.object({
   version: z.literal(1),

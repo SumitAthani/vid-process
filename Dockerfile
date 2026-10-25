@@ -22,9 +22,10 @@ FROM node:20-bookworm-slim AS runner
 
 WORKDIR /app
 
-# Install system fonts and fontconfig for libass subtitle burn-in
+# Install system fonts and fontconfig for libass subtitle burn-in (including Devanagari/Hindi support)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-dejavu-core \
+    fonts-noto-core \
     fontconfig \
     ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
@@ -32,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV NODE_ENV=production
 # Fonts for subtitle burn-in via libass on Linux
-ENV SUBTITLE_FONTS_DIR=/usr/share/fonts/truetype/dejavu
+ENV SUBTITLE_FONTS_DIR=/usr/share/fonts
 ENV SUBTITLE_FONT_NAME=DejaVuSans
 
 # Copy package definitions and install only production dependencies

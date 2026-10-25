@@ -89,7 +89,7 @@ services:
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-}
       MINIO_PUBLIC_PORT: ${MINIO_PUBLIC_PORT:-}
       MINIO_PUBLIC_USE_SSL: ${MINIO_PUBLIC_USE_SSL:-}
-      SUBTITLE_FONTS_DIR: /usr/share/fonts/truetype/dejavu
+      SUBTITLE_FONTS_DIR: /usr/share/fonts
       SUBTITLE_FONT_NAME: DejaVuSans
     restart: always
 

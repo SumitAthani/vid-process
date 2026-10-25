@@ -35,7 +35,7 @@ export async function generateManifestFromTranscript(
   const windows = buildTranscriptWindows(transcript.segments ?? []);
 
   const completion = await openaiClient.chat.completions.create({
-    model: "gpt-5.6-sol",
+    model: "gpt-4o-mini",
     response_format: { type: "json_object" },
     // temperature: 0.4,
     messages: [

@@ -126,7 +126,7 @@ export async function getJobDetails(jobId: string) {
     presignIntermediateAsset(job.transcriptTextKey),
     presignIntermediateAsset(job.subtitlesSrtKey),
     presignIntermediateAsset(job.subtitlesVttKey),
-    presignIntermediateAsset(`${jobId}/audio.wav`),
+    presignIntermediateAsset(`${jobId}/audio.mp3`),
     presignIntermediateAsset(`${jobId}/metadata.json`),
     presignIntermediateAsset(job.croppedVideoKey),
     presignIntermediateAsset(job.layoutVideoKey),
