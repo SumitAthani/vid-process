@@ -31,13 +31,18 @@ router.post("/presigned-upload", async (req, res) => {
     req.log.info({ fileName, objectName }, "Presigned upload URL generated");
 
     const host = env.MINIO_PUBLIC_ENDPOINT ?? env.MINIO_ENDPOINT;
-    const port = env.MINIO_PUBLIC_PORT ?? env.MINIO_PORT;
-    const proto = env.MINIO_USE_SSL ? "https" : "http";
+    const useSsl = env.MINIO_PUBLIC_USE_SSL ?? env.MINIO_USE_SSL;
+    const defaultPort = useSsl ? 443 : 9000;
+    const port =
+      env.MINIO_PUBLIC_PORT ??
+      (env.MINIO_PUBLIC_ENDPOINT ? defaultPort : env.MINIO_PORT);
+    const proto = useSsl ? "https" : "http";
+    const portStr = port === 80 || port === 443 ? "" : `:${port}`;
 
     return res.json({
       uploadUrl: presignedUrl,
       objectName,
-      publicUrl: `${proto}://${host}:${port}/${BUCKETS.RAW_VIDEOS}/${objectName}`,
+      publicUrl: `${proto}://${host}${portStr}/${BUCKETS.RAW_VIDEOS}/${objectName}`,
     });
   } catch (err) {
     req.log.error(err, "Failed to generate presigned URL");

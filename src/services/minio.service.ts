@@ -11,15 +11,19 @@ export const minioClient = new Client({
   useSSL: env.MINIO_USE_SSL,
   accessKey: env.MINIO_ACCESS_KEY,
   secretKey: env.MINIO_SECRET_KEY,
+  region: "us-east-1",
 });
 
 export const publicMinioClient = env.MINIO_PUBLIC_ENDPOINT
   ? new Client({
       endPoint: env.MINIO_PUBLIC_ENDPOINT,
-      port: env.MINIO_PUBLIC_PORT ?? env.MINIO_PORT,
-      useSSL: env.MINIO_USE_SSL,
+      port:
+        env.MINIO_PUBLIC_PORT ??
+        (env.MINIO_PUBLIC_USE_SSL ? 443 : env.MINIO_PORT),
+      useSSL: env.MINIO_PUBLIC_USE_SSL ?? env.MINIO_USE_SSL,
       accessKey: env.MINIO_ACCESS_KEY,
       secretKey: env.MINIO_SECRET_KEY,
+      region: "us-east-1",
     })
   : minioClient;
 
