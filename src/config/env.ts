@@ -27,8 +27,8 @@ const envSchema = z
     // MinIO
     MINIO_ENDPOINT: z.string(),
     MINIO_PORT: z.coerce.number(),
-    MINIO_ACCESS_KEY: z.string().min(1, "Access key is required"),
-    MINIO_SECRET_KEY: z.string().min(1, "Secret key is required"),
+    MINIO_ACCESS_KEY: z.string().min(1, "Access key is required").default("minioadmin"),
+    MINIO_SECRET_KEY: z.string().min(1, "Secret key is required").default("minioadminpassword"),
     MINIO_PUBLIC_ENDPOINT: z.string().optional(),
     MINIO_PUBLIC_PORT: z.coerce.number().optional(),
     MINIO_PUBLIC_USE_SSL: z
