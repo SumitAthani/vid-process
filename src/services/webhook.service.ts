@@ -1,7 +1,7 @@
 import { env } from "../config/env";
 import { prisma } from "../db/client";
 import { logger } from "../utils/logger";
-import { BUCKETS, minioClient } from "./minio.service";
+import { BUCKETS, publicMinioClient } from "./minio.service";
 
 const PRESIGN_TTL_SEC = 60 * 60;
 
@@ -49,7 +49,7 @@ export async function deliverJobWebhook(jobId: string): Promise<void> {
 
     let finalVideoUrl: string | null = null;
     if (job.status === "completed" && job.finalVideoKey) {
-      finalVideoUrl = await minioClient.presignedGetObject(
+      finalVideoUrl = await publicMinioClient.presignedGetObject(
         BUCKETS.FINAL_VIDEOS,
         job.finalVideoKey,
         PRESIGN_TTL_SEC,

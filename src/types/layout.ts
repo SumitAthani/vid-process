@@ -8,6 +8,15 @@ export type LayoutSegment = {
   layout: LayoutMode;
 };
 
+export type ComposeSubtitlesOpts = {
+  srtPath: string;
+  fontName: string;
+  fontSize: number;
+  marginV: number;
+  marginL: number;
+  marginR: number;
+};
+
 export type ComposeWithLayoutsOpts = {
   primaryPath: string;
   outputPath: string;
@@ -15,6 +24,7 @@ export type ComposeWithLayoutsOpts = {
   height: number;
   segments: LayoutSegment[];
   transitionMs: number;
+  subtitles?: ComposeSubtitlesOpts;
 };
 
 /** Segment as referenced inside an FFmpeg multi-input filter graph. */

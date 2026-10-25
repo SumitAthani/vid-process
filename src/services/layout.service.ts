@@ -12,7 +12,7 @@ import { composeWithLayouts } from "./media.service";
 import { BUCKETS, minioClient, uploadLocalFile } from "./minio.service";
 import { logger } from "../utils/logger";
 
-const ResolvedClipSchema = z.discriminatedUnion("status", [
+export const ResolvedClipSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("resolved"),
     hotKey: z.string(),
@@ -34,7 +34,7 @@ const ResolvedClipSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
-const BrollResolvedSchema = z.object({
+export const BrollResolvedSchema = z.object({
   version: z.literal(1),
   jobId: z.string(),
   clips: z.array(ResolvedClipSchema),

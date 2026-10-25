@@ -2,10 +2,9 @@ import "../config/env";
 import { Worker } from "bullmq";
 import { connection } from "../queues/connection";
 import { updateJobStatus } from "../services/job.service";
-import { composeJobLayouts } from "../services/layout.service";
-import { packageFinalReel } from "../services/final.service";
+import { composeAndPackageFinalReel } from "../services/final.service";
 import { logger } from "../utils/logger";
-import { BUCKETS, minioClient } from "../services/minio.service";
+import { BUCKETS, publicMinioClient } from "../services/minio.service";
 
 const worker = new Worker(
   "render",
@@ -15,15 +14,13 @@ const worker = new Worker(
 
     try {
       await updateJobStatus(jobId, "processing");
-      jobLogger.info("Composing layouts");
+      jobLogger.info("Composing layouts and packaging final reel in single pass");
 
       // Parent render waits for crop + broll children via BullMQ flow
-      const { layoutVideoKey, segmentCount } = await composeJobLayouts(jobId);
+      const { finalVideoKey, segmentCount } =
+        await composeAndPackageFinalReel(jobId);
 
-      jobLogger.info("Burning subtitles into final reel");
-      const { finalVideoKey } = await packageFinalReel(jobId);
-
-      const videoUrl = await minioClient.presignedGetObject(
+      const videoUrl = await publicMinioClient.presignedGetObject(
         BUCKETS.FINAL_VIDEOS,
         finalVideoKey,
         60 * 60,
@@ -31,17 +28,22 @@ const worker = new Worker(
 
       await updateJobStatus(jobId, "completed");
       jobLogger.info(
-        { layoutVideoKey, finalVideoKey, segmentCount },
-        "Final render complete",
+        { finalVideoKey, segmentCount },
+        "Single-pass final render complete",
       );
 
-      return { layoutVideoKey, finalVideoKey, videoUrl, segmentCount };
+      return { layoutVideoKey: null, finalVideoKey, videoUrl, segmentCount };
     } catch (err) {
       await updateJobStatus(jobId, "failed");
       throw err;
     }
   },
-  { connection },
+  {
+    connection,
+    lockDuration: 300000,
+    maxStalledCount: 2,
+    stalledInterval: 60000,
+  },
 );
 
 worker.on("completed", (job) => {

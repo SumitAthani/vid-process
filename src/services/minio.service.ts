@@ -1,16 +1,31 @@
-import "../config/env";
 import { Client } from "minio";
 import { logger } from "../utils/logger";
 import path from "path";
 import fs from "fs";
 import { pipeline } from "stream/promises";
+import { env } from "../config/env";
+
 export const minioClient = new Client({
-  endPoint: process.env.MINIO_ENDPOINT!,
-  port: Number(process.env.MINIO_PORT),
-  useSSL: false,
-  accessKey: process.env.MINIO_ACCESS_KEY!,
-  secretKey: process.env.MINIO_SECRET_KEY!,
+  endPoint: env.MINIO_ENDPOINT,
+  port: env.MINIO_PORT,
+  useSSL: env.MINIO_USE_SSL,
+  accessKey: env.MINIO_ACCESS_KEY,
+  secretKey: env.MINIO_SECRET_KEY,
+  region: "us-east-1",
 });
+
+export const publicMinioClient = env.MINIO_PUBLIC_ENDPOINT
+  ? new Client({
+      endPoint: env.MINIO_PUBLIC_ENDPOINT,
+      port:
+        env.MINIO_PUBLIC_PORT ??
+        (env.MINIO_PUBLIC_USE_SSL ? 443 : env.MINIO_PORT),
+      useSSL: env.MINIO_PUBLIC_USE_SSL ?? env.MINIO_USE_SSL,
+      accessKey: env.MINIO_ACCESS_KEY,
+      secretKey: env.MINIO_SECRET_KEY,
+      region: "us-east-1",
+    })
+  : minioClient;
 
 // Exporting these as constants makes it easy to import them
 // into other files without risking typos in the string names.

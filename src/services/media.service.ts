@@ -5,8 +5,13 @@ import { env } from "../config/env";
 import { VideoMetadata } from "../types/media";
 import { ClipFitPlan } from "../utils/broll-fit";
 import { CropStrategy, PadBackground } from "../types/crop";
-import { ComposeWithLayoutsOpts } from "../types/layout";
-import { buildLayoutFilterGraph } from "../utils/layout-graph";
+import { ComposeWithLayoutsOpts, LayoutMode } from "../types/layout";
+import {
+  buildLayoutFilterGraph,
+  buildPrebakedOverlayFilterGraph,
+  clampTransitionSec,
+  halfHeight,
+} from "../utils/layout-graph";
 import { wrapSrtToAss } from "../utils/subtitle-formatter";
 import path from "path";
 
@@ -50,15 +55,18 @@ export async function extractAudio(
   localVideoPath: string,
   workDir: string,
 ): Promise<string> {
-  const localAudioPath = path.join(workDir, "audio.wav");
+  const localAudioPath = path.join(workDir, "audio.mp3");
 
   await execFileAsync(env.FFMPEG_PATH, [
+    "-nostdin",
     "-y",
     "-i",
     localVideoPath,
     "-vn",
-    "-acodec",
-    "pcm_s16le",
+    "-c:a",
+    "libmp3lame",
+    "-b:a",
+    "64k",
     "-ar",
     "16000",
     "-ac",
@@ -91,6 +99,7 @@ export async function fitClipToDuration(
 
   if (plan.strategy === "none") {
     await execFileAsync(env.FFMPEG_PATH, [
+      "-nostdin",
       "-y",
       "-i",
       inputPath,
@@ -103,6 +112,7 @@ export async function fitClipToDuration(
 
   if (plan.strategy === "trim") {
     await execFileAsync(env.FFMPEG_PATH, [
+      "-nostdin",
       "-y",
       "-ss",
       String(plan.trimStart),
@@ -116,6 +126,7 @@ export async function fitClipToDuration(
   }
 
   await execFileAsync(env.FFMPEG_PATH, [
+    "-nostdin",
     "-y",
     "-stream_loop",
     String(plan.loopCount),
@@ -131,6 +142,10 @@ export async function fitClipToDuration(
 const ENCODE_ARGS = [
   "-c:v",
   "libx264",
+  "-preset",
+  "veryfast",
+  "-threads",
+  "2",
   "-pix_fmt",
   "yuv420p",
   "-movflags",
@@ -163,11 +178,12 @@ export async function fitPrimaryToVertical(
     const bg = padBackground ?? "blur";
     if (bg === "blur") {
       await execFileAsync(env.FFMPEG_PATH, [
+        "-nostdin",
         "-y",
         "-i",
         inputPath,
         "-filter_complex",
-        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},gblur=sigma=20[bg];` +
+        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=luma_radius=15:luma_power=2[bg];` +
           `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease[fg];` +
           `[bg][fg]overlay=(W-w)/2:(H-h)/2`,
         ...ENCODE_ARGS,
@@ -179,6 +195,7 @@ export async function fitPrimaryToVertical(
     const color = bg === "white" ? "white" : "black";
     const vf = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:${color}`;
     await execFileAsync(env.FFMPEG_PATH, [
+      "-nostdin",
       "-y",
       "-i",
       inputPath,
@@ -193,6 +210,7 @@ export async function fitPrimaryToVertical(
   // center crop
   const vf = `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`;
   await execFileAsync(env.FFMPEG_PATH, [
+    "-nostdin",
     "-y",
     "-i",
     inputPath,
@@ -218,60 +236,231 @@ export async function cropToVertical(
 }
 
 /**
+ * Pre-bake an individual B-roll segment into an isolated, lossless QuickTime Animation (.mov)
+ * clip with alpha transparency.
+ *
+ * Each pre-bake only opens 2 input streams and executes in ~0.4s, using < 150 MB of RAM.
+ */
+export async function prebakeSegment(opts: {
+  primaryPath: string;
+  clipPath: string;
+  startTime: number;
+  endTime: number;
+  layout: LayoutMode;
+  transitionMs: number;
+  outputPath: string;
+  width: number;
+  height: number;
+}): Promise<void> {
+  const dur = Math.max(0.1, opts.endTime - opts.startTime);
+  const Hh = halfHeight(opts.height);
+  const t = clampTransitionSec(opts.transitionMs / 1000, dur);
+  const fadeOutSt = Math.max(0, dur - t);
+
+  if (opts.layout === "top-half-overlay") {
+    await execFileAsync(env.FFMPEG_PATH, [
+      "-nostdin",
+      "-y",
+      "-t",
+      String(dur),
+      "-i",
+      opts.clipPath,
+      "-filter_complex",
+      `[0:v]scale=${opts.width}:${Hh}:force_original_aspect_ratio=increase,crop=${opts.width}:${Hh},` +
+        `format=yuva420p,fade=t=in:st=0:d=${t}:alpha=1,fade=t=out:st=${fadeOutSt}:d=${t}:alpha=1[out]`,
+      "-map",
+      "[out]",
+      "-c:v",
+      "qtrle",
+      opts.outputPath,
+    ]);
+    return;
+  }
+
+  // half-and-half layout: top half = B-roll, bottom half = speaker (extracted via fast -ss seek)
+  await execFileAsync(env.FFMPEG_PATH, [
+    "-nostdin",
+    "-y",
+    "-ss",
+    String(opts.startTime),
+    "-t",
+    String(dur),
+    "-i",
+    opts.primaryPath,
+    "-t",
+    String(dur),
+    "-i",
+    opts.clipPath,
+    "-filter_complex",
+    `[0:v]scale=${opts.width}:${Hh}:force_original_aspect_ratio=increase,crop=${opts.width}:${Hh}[spk];` +
+      `[1:v]scale=${opts.width}:${Hh}:force_original_aspect_ratio=increase,crop=${opts.width}:${Hh}[br];` +
+      `[br][spk]vstack=inputs=2,format=yuva420p,fade=t=in:st=0:d=${t}:alpha=1,fade=t=out:st=${fadeOutSt}:d=${t}:alpha=1[out]`,
+    "-map",
+    "[out]",
+    "-c:v",
+    "qtrle",
+    opts.outputPath,
+  ]);
+}
+
+/**
  * Composite timed B-roll layouts onto a full-timeline primary (9:16).
+ *
+ * Uses a Two-Phase Pre-Bake Architecture:
+ * 1. Pre-bakes each split segment into an isolated temporary .mov file with alpha channel.
+ * 2. Runs a clean, linear overlay pass onto the main timeline.
+ *
  * Keeps primary audio when present; B-roll audio is ignored.
  */
 export async function composeWithLayouts(
   opts: ComposeWithLayoutsOpts,
 ): Promise<string> {
-  const { primaryPath, outputPath, width, height, segments, transitionMs } =
-    opts;
-
-  const transitionSec = transitionMs / 1000;
-
-  if (segments.length === 0) {
-    await execFileAsync(env.FFMPEG_PATH, [
-      "-y",
-      "-i",
-      primaryPath,
-      ...ENCODE_ARGS,
-      outputPath,
-    ]);
-    return outputPath;
-  }
-
-  const graphSegments = segments.map((seg, i) => ({
-    inputIndex: i + 1,
-    startTime: seg.startTime,
-    endTime: seg.endTime,
-    layout: seg.layout,
-  }));
-
-  const { filterComplex, outputLabel } = buildLayoutFilterGraph({
+  const {
+    primaryPath,
+    outputPath,
     width,
     height,
-    segments: graphSegments,
-    transitionSec,
-  });
+    segments,
+    transitionMs,
+    subtitles,
+  } = opts;
 
-  const args: string[] = ["-y", "-i", primaryPath];
-  for (const seg of segments) {
-    args.push("-i", seg.clipPath);
+  let assPath: string | null = null;
+  let assDir: string | null = null;
+
+  if (subtitles) {
+    await assertSubtitlesFilterSupport();
+    assDir = path.dirname(path.resolve(subtitles.srtPath));
+    assPath = path.join(assDir, "burn.ass");
+    const srtContent = await fs.readFile(
+      path.resolve(subtitles.srtPath),
+      "utf8",
+    );
+    const assContent = wrapSrtToAss(srtContent, {
+      fontName: subtitles.fontName,
+      fontSize: subtitles.fontSize,
+      marginV: subtitles.marginV,
+      marginL: subtitles.marginL,
+      marginR: subtitles.marginR,
+      playResX: width,
+      playResY: height,
+    });
+    await fs.writeFile(assPath, assContent, "utf8");
   }
 
-  args.push(
-    "-filter_complex",
-    filterComplex,
-    "-map",
-    outputLabel,
-    "-map",
-    "0:a?",
-    ...ENCODE_ARGS,
-    outputPath,
-  );
+  if (segments.length === 0) {
+    try {
+      if (subtitles && assPath && assDir) {
+        const fontsDir = escapeFilterPath(env.SUBTITLE_FONTS_DIR);
+        const assName = path.basename(assPath);
+        const vf = `subtitles='${escapeFilterPath(assName)}':fontsdir='${fontsDir}'`;
+        await execFileAsync(
+          env.FFMPEG_PATH,
+          [
+            "-nostdin",
+            "-y",
+            "-i",
+            primaryPath,
+            "-vf",
+            vf,
+            ...ENCODE_ARGS,
+            outputPath,
+          ],
+          { cwd: assDir },
+        );
+        return outputPath;
+      }
 
-  await execFileAsync(env.FFMPEG_PATH, args);
-  return outputPath;
+      await execFileAsync(env.FFMPEG_PATH, [
+        "-nostdin",
+        "-y",
+        "-i",
+        primaryPath,
+        ...ENCODE_ARGS,
+        outputPath,
+      ]);
+      return outputPath;
+    } finally {
+      if (assPath) {
+        await fs.unlink(assPath).catch(() => {});
+      }
+    }
+  }
+
+  const workDir = path.dirname(outputPath);
+  const prebakedPaths: string[] = [];
+
+  try {
+    // Phase 1: Pre-bake each layout segment independently (each uses < 150 MB RAM)
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]!;
+      const prebakedPath = path.join(workDir, `pb-seg-${i}.mov`);
+      await prebakeSegment({
+        primaryPath,
+        clipPath: seg.clipPath,
+        startTime: seg.startTime,
+        endTime: seg.endTime,
+        layout: seg.layout,
+        transitionMs,
+        outputPath: prebakedPath,
+        width,
+        height,
+      });
+      prebakedPaths.push(prebakedPath);
+    }
+
+    // Phase 2: Simple linear overlay pass (primary video read strictly once, linearly)
+    const overlaySegments = segments.map((seg, i) => ({
+      inputIndex: i + 1,
+      startTime: seg.startTime,
+      endTime: seg.endTime,
+    }));
+
+    const { filterComplex, outputLabel } = buildPrebakedOverlayFilterGraph({
+      segments: overlaySegments,
+    });
+
+    let finalFilterComplex = filterComplex;
+    let finalOutputLabel = outputLabel;
+
+    if (subtitles && assPath && assDir) {
+      const fontsDir = escapeFilterPath(env.SUBTITLE_FONTS_DIR);
+      const assName = path.basename(assPath);
+      finalFilterComplex += `;${outputLabel}subtitles='${escapeFilterPath(assName)}':fontsdir='${fontsDir}'[vout]`;
+      finalOutputLabel = "[vout]";
+    }
+
+    const args: string[] = ["-nostdin", "-y", "-i", primaryPath];
+    for (const pbPath of prebakedPaths) {
+      args.push("-i", pbPath);
+    }
+
+    args.push(
+      "-filter_complex",
+      finalFilterComplex,
+      "-map",
+      finalOutputLabel,
+      "-map",
+      "0:a?",
+      ...ENCODE_ARGS,
+      outputPath,
+    );
+
+    await execFileAsync(
+      env.FFMPEG_PATH,
+      args,
+      assDir ? { cwd: assDir } : undefined,
+    );
+    return outputPath;
+  } finally {
+    // Clean up temporary prebaked segment files & ASS file
+    for (const pbPath of prebakedPaths) {
+      await fs.unlink(pbPath).catch(() => {});
+    }
+    if (assPath) {
+      await fs.unlink(assPath).catch(() => {});
+    }
+  }
 }
 
 /** Escape a local path for use inside an FFmpeg filtergraph argument. */
@@ -361,6 +550,7 @@ export async function burnSubtitles(
   await execFileAsync(
     env.FFMPEG_PATH,
     [
+      "-nostdin",
       "-y",
       "-i",
       inputAbs,
@@ -368,6 +558,10 @@ export async function burnSubtitles(
       vf,
       "-c:v",
       "libx264",
+      "-preset",
+      "veryfast",
+      "-threads",
+      "2",
       "-pix_fmt",
       "yuv420p",
       "-movflags",

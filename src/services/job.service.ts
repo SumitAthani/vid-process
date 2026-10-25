@@ -12,7 +12,7 @@ import {
   SubtitleStyleInput,
 } from "../types/subtitle";
 import { LayoutMode } from "../types/layout";
-import { BUCKETS, minioClient } from "./minio.service";
+import { BUCKETS, minioClient, publicMinioClient } from "./minio.service";
 import { deliverJobWebhook } from "./webhook.service";
 
 export class EnqueueError extends Error {
@@ -88,7 +88,7 @@ async function presignIntermediateAsset(
 ): Promise<string | null> {
   if (!objectKey) return null;
 
-  return minioClient.presignedGetObject(
+  return publicMinioClient.presignedGetObject(
     BUCKETS.INTERMEDIATE_ASSETS,
     objectKey,
     PRESIGN_TTL_SEC,
@@ -100,7 +100,7 @@ async function presignFinalAsset(
 ): Promise<string | null> {
   if (!objectKey) return null;
 
-  return minioClient.presignedGetObject(
+  return publicMinioClient.presignedGetObject(
     BUCKETS.FINAL_VIDEOS,
     objectKey,
     PRESIGN_TTL_SEC,
@@ -126,7 +126,7 @@ export async function getJobDetails(jobId: string) {
     presignIntermediateAsset(job.transcriptTextKey),
     presignIntermediateAsset(job.subtitlesSrtKey),
     presignIntermediateAsset(job.subtitlesVttKey),
-    presignIntermediateAsset(`${jobId}/audio.wav`),
+    presignIntermediateAsset(`${jobId}/audio.mp3`),
     presignIntermediateAsset(`${jobId}/metadata.json`),
     presignIntermediateAsset(job.croppedVideoKey),
     presignIntermediateAsset(job.layoutVideoKey),

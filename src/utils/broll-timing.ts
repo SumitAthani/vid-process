@@ -78,13 +78,13 @@ export function enforceMinOnScreenDuration<T extends TimedSegment>(
     duration = roundMs(end - start);
 
     // minDuration must fit inside the final on-screen window
-    const minDuration = roundMs(
-      clamp(
-        seg.minDuration,
-        Math.min(minSec, duration),
-        Math.min(maxSec, duration),
-      ),
+    const rawMin = Number.isFinite(seg.minDuration) ? seg.minDuration : minSec;
+    const clampedMin = clamp(
+      rawMin,
+      Math.min(minSec, duration),
+      Math.min(maxSec, duration),
     );
+    const minDuration = roundMs(Math.min(clampedMin, duration));
 
     return {
       ...seg,

@@ -26,6 +26,7 @@ createBullBoard({
 });
 
 const router = Router();
+router.get("/", (req, res) => res.redirect("/bull/admin/queues"));
 router.use("/admin/queues", serverAdapter.getRouter());
 
 export default router;
