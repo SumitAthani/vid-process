@@ -38,7 +38,12 @@ const worker = new Worker(
       throw err;
     }
   },
-  { connection },
+  {
+    connection,
+    lockDuration: 300000,
+    maxStalledCount: 2,
+    stalledInterval: 60000,
+  },
 );
 
 worker.on("completed", (job) => {
