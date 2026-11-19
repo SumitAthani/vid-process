@@ -257,6 +257,11 @@ export async function prebakeSegment(opts: {
   const t = clampTransitionSec(opts.transitionMs / 1000, dur);
   const fadeOutSt = Math.max(0, dur - t);
 
+  // Probe clip to check if it's already a full-height overlay (e.g. Remotion motion graphic card)
+  const clipMeta = await probeVideo(opts.clipPath).catch(() => null);
+  const isFullHeight = clipMeta && clipMeta.height >= opts.height * 0.85;
+  const targetH = isFullHeight ? opts.height : Hh;
+
   if (opts.layout === "top-half-overlay") {
     await execFileAsync(env.FFMPEG_PATH, [
       "-nostdin",
@@ -266,7 +271,7 @@ export async function prebakeSegment(opts: {
       "-i",
       opts.clipPath,
       "-filter_complex",
-      `[0:v]scale=${opts.width}:${Hh}:force_original_aspect_ratio=increase,crop=${opts.width}:${Hh},` +
+      `[0:v]scale=${opts.width}:${targetH}:force_original_aspect_ratio=increase,crop=${opts.width}:${targetH},` +
         `format=yuva420p,fade=t=in:st=0:d=${t}:alpha=1,fade=t=out:st=${fadeOutSt}:d=${t}:alpha=1[out]`,
       "-map",
       "[out]",

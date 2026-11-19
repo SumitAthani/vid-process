@@ -1,3 +1,4 @@
+import path from "path";
 import { env } from "../config/env";
 import { mapWithConcurrency } from "../utils/concurrency";
 import { logger } from "../utils/logger";
@@ -9,7 +10,13 @@ import {
   setCachedSearch,
 } from "../utils/pexelsCache";
 import { fitDownloadedClipToWindow } from "./broll-fit.service";
-import { BUCKETS, minioClient } from "./minio.service";
+import { BUCKETS, minioClient, uploadLocalFile } from "./minio.service";
+import {
+  cleanupWorkDir,
+  createJobWorkDir,
+} from "./media-ingestion.service";
+import { renderGraphicOverlay } from "./remotion.service";
+import { GraphicCardSpec } from "../types/broll-manifest";
 
 const PEXELS_SEARCH_URL = "https://api.pexels.com/v1/videos/search";
 
@@ -211,11 +218,13 @@ export async function getClipsFromSegmentsAndSaveToMinio(
   jobId: string,
   segments: Array<{
     hotKey: string;
+    kind?: "stock-video" | "graphic-card";
     searchQuery: string;
     startTime: number;
     endTime: number;
     minDuration: number;
     layout: "top-half-overlay" | "half-and-half";
+    graphicCard?: GraphicCardSpec;
   }>,
 ) {
   return mapWithConcurrency(
@@ -224,6 +233,51 @@ export async function getClipsFromSegmentsAndSaveToMinio(
     async (segment, i) => {
       const windowDuration = segment.endTime - segment.startTime;
 
+      // 1. If segment is explicitly defined as an animated graphic card, render via Remotion
+      if (segment.kind === "graphic-card" && segment.graphicCard) {
+        let workDir: string | null = null;
+        try {
+          workDir = await createJobWorkDir(`${jobId}-graphic-${i}`);
+          const localOutputPath = path.join(workDir, `graphic-${i}.mov`);
+
+          await renderGraphicOverlay({
+            layout: segment.graphicCard.layout,
+            animation: segment.graphicCard.animation,
+            theme: segment.graphicCard.theme,
+            content: segment.graphicCard.content,
+            durationSeconds: windowDuration,
+            outputPath: localOutputPath,
+          });
+
+          const objectKey = `${jobId}/graphic-${i}.mov`;
+          await uploadLocalFile(
+            BUCKETS.INTERMEDIATE_ASSETS,
+            objectKey,
+            localOutputPath,
+            "video/quicktime",
+          );
+
+          return {
+            ...segment,
+            status: "resolved" as const,
+            objectKey,
+            rawObjectKey: objectKey,
+            searchQueryUsed: segment.searchQuery,
+            duration: windowDuration,
+            sourceDuration: windowDuration,
+            fitStrategy: "remotion-motion-graphic" as const,
+          };
+        } catch (err) {
+          logger.error(
+            { err, hotKey: segment.hotKey },
+            "Failed to render Remotion graphic card",
+          );
+        } finally {
+          if (workDir) await cleanupWorkDir(workDir);
+        }
+      }
+
+      // 2. Query Pexels for stock video
       let clip = await findPexelsClip(segment.searchQuery, windowDuration);
       let searchQueryUsed = segment.searchQuery;
 
@@ -235,15 +289,79 @@ export async function getClipsFromSegmentsAndSaveToMinio(
         }
       }
 
+      // 3. Fallback: If Pexels returned 0 results, generate an automated Remotion graphic card!
       if (!clip) {
-        return {
-          ...segment,
-          status: "skipped" as const,
-          skipReason: "no_match_after_rewrite",
-          searchQueryUsed,
-        };
+        logger.info(
+          { hotKey: segment.hotKey, query: segment.searchQuery },
+          "Pexels returned 0 results; generating dynamic Remotion graphic fallback card",
+        );
+
+        let workDir: string | null = null;
+        try {
+          workDir = await createJobWorkDir(`${jobId}-fallback-${i}`);
+          const localOutputPath = path.join(workDir, `graphic-${i}.mov`);
+
+          const headline =
+            segment.hotKey.length > 28
+              ? segment.hotKey.slice(0, 25) + "..."
+              : segment.hotKey.charAt(0).toUpperCase() + segment.hotKey.slice(1);
+
+          await renderGraphicOverlay({
+            layout:
+              segment.layout === "half-and-half"
+                ? "top-half-banner"
+                : "center-card",
+            animation: "spring-pop",
+            theme: {
+              background: "#0F172A",
+              textColor: "#F8FAFC",
+              accentColor: "#38BDF8",
+            },
+            content: {
+              badgeText: "KEY TAKEAWAY",
+              headline,
+              subheadline: segment.searchQuery,
+              iconName: "sparkles",
+            },
+            durationSeconds: windowDuration,
+            outputPath: localOutputPath,
+          });
+
+          const objectKey = `${jobId}/graphic-${i}.mov`;
+          await uploadLocalFile(
+            BUCKETS.INTERMEDIATE_ASSETS,
+            objectKey,
+            localOutputPath,
+            "video/quicktime",
+          );
+
+          return {
+            ...segment,
+            status: "resolved" as const,
+            objectKey,
+            rawObjectKey: objectKey,
+            searchQueryUsed,
+            duration: windowDuration,
+            sourceDuration: windowDuration,
+            fitStrategy: "remotion-fallback" as const,
+          };
+        } catch (fallbackErr) {
+          logger.error(
+            { fallbackErr, hotKey: segment.hotKey },
+            "Remotion fallback also failed",
+          );
+          return {
+            ...segment,
+            status: "skipped" as const,
+            skipReason: "no_match_and_fallback_failed",
+            searchQueryUsed,
+          };
+        } finally {
+          if (workDir) await cleanupWorkDir(workDir);
+        }
       }
 
+      // 4. Download and fit Pexels clip
       try {
         const rawObjectKey = await downloadClipToMinio(jobId, i, clip);
 

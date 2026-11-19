@@ -4,6 +4,7 @@
       "target": "ES2022",                  // Compiles to modern JS features supported by current Node versions
       "module": "CommonJS",                // Standard module system for Node.js
       "moduleResolution": "node",
+      "jsx": "react-jsx",
       
       /* Directory Setup */
       "rootDir": "./src",                  // Where your TS files live

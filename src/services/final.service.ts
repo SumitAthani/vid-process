@@ -58,7 +58,8 @@ export async function composeAndPackageFinalReel(jobId: string): Promise<{
       for (const clip of resolved.clips) {
         if (clip.status !== "resolved") continue;
 
-        const clipLocal = path.join(workDir, `broll-${clipIdx}.mp4`);
+        const ext = path.extname(clip.objectKey) || ".mp4";
+        const clipLocal = path.join(workDir, `broll-${clipIdx}${ext}`);
         await minioClient.fGetObject(
           BUCKETS.INTERMEDIATE_ASSETS,
           clip.objectKey,

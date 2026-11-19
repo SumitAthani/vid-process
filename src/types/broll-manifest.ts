@@ -1,9 +1,49 @@
 import { z } from "zod";
 import { env } from "../config/env";
 
+export const GraphicCardLayoutSchema = z.enum([
+  "center-card",
+  "top-half-banner",
+  "lower-third-callout",
+]);
+
+export const GraphicCardAnimationSchema = z.enum([
+  "spring-pop",
+  "slide-up-blur",
+  "counter-spin",
+]);
+
+export const GraphicCardThemeSchema = z.object({
+  background: z.string().default("#0F172A"),
+  textColor: z.string().default("#F8FAFC"),
+  accentColor: z.string().default("#38BDF8"),
+});
+
+export const GraphicCardContentSchema = z.object({
+  headline: z.string().min(1),
+  subheadline: z.string().optional(),
+  metricValue: z.string().optional(),
+  iconName: z.string().optional(),
+  badgeText: z.string().optional(),
+});
+
+export const GraphicCardSpecSchema = z.object({
+  layout: GraphicCardLayoutSchema.default("center-card"),
+  animation: GraphicCardAnimationSchema.default("spring-pop"),
+  theme: GraphicCardThemeSchema.default({
+    background: "#0F172A",
+    textColor: "#F8FAFC",
+    accentColor: "#38BDF8",
+  }),
+  content: GraphicCardContentSchema,
+});
+
+export type GraphicCardSpec = z.infer<typeof GraphicCardSpecSchema>;
+
 const HotKeySegmentSchema = z
   .object({
     hotKey: z.string().min(1),
+    kind: z.enum(["stock-video", "graphic-card"]).default("stock-video"),
     searchQuery: z
       .string()
       .min(3)
@@ -18,6 +58,7 @@ const HotKeySegmentSchema = z
       .min(env.BROLL_MIN_ON_SCREEN_SEC)
       .max(env.BROLL_MAX_ON_SCREEN_SEC),
     layout: z.enum(["top-half-overlay", "half-and-half"]),
+    graphicCard: GraphicCardSpecSchema.optional(),
   })
   .refine((s) => s.endTime > s.startTime)
   .refine(
